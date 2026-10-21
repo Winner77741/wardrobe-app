@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Wardrobe">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#ffffff">
+  <title>Wardrobe</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Wardrobe</h1>
+    <nav>
+      <button class="tab active" data-view="closet">My Closet</button>
+      <button class="tab" data-view="create">Create Outfit</button>
+      <button class="tab" data-view="saved">Saved Outfits</button>
+      <button class="tab" data-view="settings">Settings</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- CLOSET -->
+    <section id="view-closet" class="view active">
+      <form id="add-form" class="card add-form">
+        <h2>Add an item</h2>
+        <label class="photo-drop">
+          <input type="file" name="photo" accept="image/*">
+          <img id="photo-preview" alt="" hidden>
+          <span id="photo-hint">Click to choose a photo</span>
+        </label>
+        <div class="fields">
+          <p id="ai-msg" class="ai-msg" hidden></p>
+          <label>Name <input name="name" placeholder="Black silk blouse" required></label>
+          <label>Type
+            <select name="category" required>
+              <option value="" selected disabled>Choose a type…</option>
+              <option value="top">Top</option>
+              <option value="bottom">Bottom (pants, skirt)</option>
+              <option value="dress">Dress / jumpsuit</option>
+              <option value="outerwear">Outerwear (coat, blazer)</option>
+              <option value="shoes">Shoes</option>
+              <option value="bag">Bag</option>
+              <option value="accessory">Accessory (jewelry, scarf, belt)</option>
+              <option value="other">Other (swimwear, lingerie — kept, not used in outfits)</option>
+            </select>
+          </label>
+          <label>Colors <input name="colors" placeholder="black gold"></label>
+          <label>How dressy?
+            <select name="formality">
+              <option value="1">1 – Very casual</option>
+              <option value="2">2 – Casual</option>
+              <option value="3" selected>3 – Smart casual</option>
+              <option value="4">4 – Dressy</option>
+              <option value="5">5 – Formal / evening</option>
+            </select>
+          </label>
+          <label>Tags (optional) <input name="tags" placeholder="summer, favorite"></label>
+          <button type="submit" class="primary">Add to closet</button>
+          <p id="add-msg" class="msg"></p>
+        </div>
+      </form>
+
+      <div class="card bulk">
+        <div class="bulk-head">
+          <div>
+            <h2>Add many items at once</h2>
+            <p class="muted" id="bulk-hint">Choose several photos. Check each item's details, then click “Add all”.</p>
+          </div>
+          <label class="button primary">Choose photos…
+            <input type="file" id="bulk-input" accept="image/*" multiple hidden>
+          </label>
+        </div>
+        <div id="bulk-list"></div>
+        <div id="bulk-actions" class="bulk-actions" hidden>
+          <button id="bulk-add" class="primary">Add all</button>
+          <button id="bulk-clear">Clear list</button>
+          <span id="bulk-msg" class="msg"></span>
+        </div>
+      </div>
+
+      <div class="filter-row">
+        <h2>My closet <span id="item-count" class="muted"></span></h2>
+        <select id="closet-filter">
+          <option value="">All types</option>
+          <option value="top">Tops</option>
+          <option value="bottom">Bottoms</option>
+          <option value="dress">Dresses</option>
+          <option value="outerwear">Outerwear</option>
+          <option value="shoes">Shoes</option>
+          <option value="bag">Bags</option>
+          <option value="accessory">Accessories</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div id="closet-grid" class="grid"></div>
+    </section>
+
+    <!-- EDIT ITEM (pop-up window) -->
+    <dialog id="edit-dialog" class="card">
+      <form id="edit-form" class="add-form" method="dialog">
+        <h2>Edit item</h2>
+        <label class="photo-drop">
+          <input type="file" name="photo" accept="image/*">
+          <img id="edit-preview" alt="">
+        </label>
+        <div class="fields">
+          <label>Name <input name="name" required></label>
+          <label>Type <select name="category"></select></label>
+          <label>Colors <input name="colors"></label>
+          <label>How dressy? <select name="formality"></select></label>
+          <label>Tags (optional) <input name="tags"></label>
+          <label class="check"><input type="checkbox" name="useCutout"> Remove background</label>
+          <p class="muted hint">Click the photo to replace it. <span id="cutout-note"></span></p>
+          <div class="dialog-buttons">
+            <button type="button" id="edit-cancel">Cancel</button>
+            <button type="submit" class="primary">Save changes</button>
+          </div>
+          <p id="edit-msg" class="msg"></p>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- CREATE OUTFIT -->
+    <section id="view-create" class="view">
+      <div id="anchor-bar" class="card anchor-bar" hidden>
+        <img id="anchor-img" alt="">
+        <span>Building around <strong id="anchor-name"></strong></span>
+        <button id="anchor-clear" class="link">Stop building around this</button>
+      </div>
+      <div class="card occasion-bar">
+        <label>Occasion
+          <select id="occasion"></select>
+        </label>
+        <button id="generate" class="primary">Create outfit</button>
+        <button id="shuffle" hidden>Try another</button>
+      </div>
+      <div id="rate-bar" class="rate-bar" hidden>
+        <button id="save-outfit" class="rate love">👍 Love it <span class="muted">(saves it)</span></button>
+        <button id="dislike-outfit" class="rate">👎 Not for me</button>
+        <span id="learned-note" class="muted"></span>
+      </div>
+      <p id="create-msg" class="msg"></p>
+      <div id="board-wrap"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="view-settings" class="view">
+      <div class="card settings">
+        <h2>AI fills in item details</h2>
+        <p class="muted">When you choose a photo in “Add an item”, AI suggests the name, type,
+          colors and dressiness. You always check them before adding. Each photo is sent to
+          Anthropic and costs a fraction of a cent.</p>
+        <p id="key-status"></p>
+        <form id="key-form" class="key-row">
+          <input type="password" name="apiKey" placeholder="Paste your Anthropic API key (sk-ant-…)" autocomplete="off" required>
+          <button type="submit" class="primary">Save key</button>
+        </form>
+        <p class="muted">Get a key at
+          <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>.
+          <span id="key-where">The key is saved only on this Mac, in the Wardrobe folder's .env file.</span></p>
+        <label class="model-row">AI model
+          <select id="model-select"></select>
+        </label>
+        <p id="settings-msg" class="msg"></p>
+      </div>
+      <div class="card settings">
+        <h2>Closet file</h2>
+        <p class="muted">Your whole closet (items, saved outfits, ratings and every photo) in one file.
+          Keep a copy somewhere safe, or use it to move your closet to the iPhone app.</p>
+        <a class="button primary" href="/api/export" download>Download closet file</a>
+        <h3>Load a closet file</h3>
+        <p class="muted">This <b>replaces</b> everything in your closet with what's in the file.
+          A full backup of your current closet is made first.</p>
+        <form id="import-form" class="key-row">
+          <input type="file" name="file" accept=".zip,application/zip" required>
+          <button type="submit">Replace my closet</button>
+        </form>
+        <p id="import-msg" class="msg"></p>
+      </div>
+      <div class="card settings">
+        <h2>What the app has learned</h2>
+        <p class="muted">Outfits you 👍 love (saved) are suggested more often; outfits you 👎 dislike
+          never come back, and those items appear together less often.</p>
+        <p id="learned-summary"></p>
+        <button id="reset-dislikes">Forget my thumbs down</button>
+        <p id="learned-msg" class="msg"></p>
+      </div>
+    </section>
+
+    <!-- SAVED -->
+    <section id="view-saved" class="view">
+      <h2>Saved outfits</h2>
+      <div id="saved-list"></div>
+    </section>
+  </main>
+
+  <script>window.WARDROBE_STANDALONE = true;</script>
+  <script src="phone-bundle.js"></script>
+  <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});</script>
+  <script src="outfits.js"></script>
+  <script src="app.js"></script>
+  <script src="bulk.js"></script>
+</body>
+</html>

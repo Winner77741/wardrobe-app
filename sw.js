@@ -1,11 +1,15 @@
 // Offline support for the home-screen app: keeps a copy of the app's own files
 // so it opens without internet. Your closet isn't here; it's in the app's storage.
 // The cache name and file list below are filled in by scripts/build-web.js.
-const CACHE = "wardrobe-6e3f31915dfd";
+const CACHE = "wardrobe-8d787d96decc";
 const FILES = ["./","app.js","bulk.js","icons/icon-180.png","icons/icon-192.png","icons/icon-512.png","index.html","manifest.webmanifest","outfits.js","phone-bundle.js","styles.css","weather.js"];
 
+// Always fetch fresh copies here: the browser's own short-term memory may still
+// hold files from the previous version, and a mix of old and new could break the app.
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE)
+    .then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: "reload" }))))
+    .then(() => self.skipWaiting()));
 });
 
 // A new version replaces the old copy.

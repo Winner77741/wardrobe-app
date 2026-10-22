@@ -151,6 +151,7 @@ async function suggestFromPhoto(file) {
 
 // ---------- Settings ----------
 async function renderSettings() {
+  $("#app-version").textContent = window.WARDROBE_VERSION ? `App version ${window.WARDROBE_VERSION}` : "App version: Mac";
   const s = await api("/api/settings");
   if (window.phoneApi) $("#key-where").textContent = "The key is saved only on this phone.";
   aiReady = s.hasKey;

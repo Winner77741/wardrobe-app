@@ -221,6 +221,7 @@ label.button.primary, a.button.primary { background: var(--accent); color: #fff;
 }
 
 /* Settings */
+.app-version { text-align: center; font-size: .8em; }
 .settings { padding: 20px; max-width: 640px; margin-bottom: 16px; }
 .settings h2 { margin-top: 0; }
 .key-row { display: flex; gap: 8px; flex-wrap: wrap; }

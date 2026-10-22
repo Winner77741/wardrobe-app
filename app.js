@@ -3,6 +3,7 @@
 let items = [];
 let current = null; // outfit currently shown on the Create board
 let anchor = null;  // item the user chose to "build an outfit around"
+const kept = new Set(); // ids of outfit pieces the user chose to keep (🔒) while trying others
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -20,6 +21,25 @@ async function api(url, opts = {}) {
   if (!res.ok) throw new Error(body.error || "Something went wrong.");
   return body;
 }
+
+// ---------- Errors ----------
+// A short message at the bottom of the screen when something fails, so a
+// button never just stops working without a word.
+let toastTimer = null;
+function showError(err) {
+  const toast = $("#toast");
+  const text = err && err.message ? err.message : String(err || "Something went wrong.");
+  // On the Mac, a network failure means the Wardrobe server isn't running.
+  const offline = !window.phoneApi && /Failed to fetch|NetworkError|Load failed/i.test(text);
+  toast.textContent = offline
+    ? "Couldn't reach the Wardrobe app. Is it still running on your Mac? (Start it with: npm start)"
+    : text;
+  toast.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toast.hidden = true; }, 7000);
+}
+// Safety net: any failure not handled elsewhere still gets a message.
+window.addEventListener("unhandledrejection", (e) => showError(e.reason));
 
 // ---------- Tabs ----------
 function showView(name) {
@@ -198,7 +218,12 @@ const canCutout = () => !window.phoneApi || !!window.phoneCanCutout;
 async function waitForCutout(id, msg) {
   for (let tries = 0; tries < 30; tries++) {
     await new Promise((r) => setTimeout(r, 2000));
-    const fresh = (await api("/api/items")).find((i) => i.id === id);
+    let fresh;
+    try {
+      fresh = (await api("/api/items")).find((i) => i.id === id);
+    } catch {
+      return; // the photo still shows; the next page load picks up the result
+    }
     if (!fresh) return;
     if (fresh.cutout || fresh.cutoutFailed) {
       items = items.map((i) => (i.id === id ? fresh : i));
@@ -213,6 +238,8 @@ async function waitForCutout(id, msg) {
 
 // The background-removed photo when there is one (and it's switched on), otherwise the original.
 const shownPhoto = (i) => (i.cutout && i.useCutout !== false ? i.cutout : i.photo);
+// The same, as a small copy (much faster to show); the full photo if there's no small copy yet.
+const shownThumb = (i) => (i.cutout && i.useCutout !== false ? i.cutoutThumb || i.cutout : i.thumb || i.photo);
 
 $("#closet-filter").addEventListener("change", renderCloset);
 
@@ -230,7 +257,7 @@ function renderCloset() {
   }
   grid.innerHTML = shown.map((i) => `
     <div class="card item">
-      <img src="${esc(shownPhoto(i))}" alt="${esc(i.name)}">
+      <img src="${esc(shownThumb(i))}" alt="${esc(i.name)}">
       <div class="item-info">
         <strong>${esc(i.name)}</strong>
         <span class="muted">${esc(i.category)} · ${LEVELS[i.formality]}</span>
@@ -251,7 +278,11 @@ $("#closet-grid").addEventListener("click", async (e) => {
   if (!del) return;
   const item = items.find((i) => i.id === del);
   if (!confirm(`Remove “${item.name}” from your closet? This also deletes its photo.`)) return;
-  await api("/api/items/" + del, { method: "DELETE" });
+  try {
+    await api("/api/items/" + del, { method: "DELETE" });
+  } catch (err) {
+    return showError(err);
+  }
   items = items.filter((i) => i.id !== del);
   if (anchor && anchor.id === del) setAnchor(null);
   renderCloset();
@@ -322,18 +353,28 @@ editForm.addEventListener("submit", async (e) => {
 });
 
 // ---------- Outfit board ----------
-function tile(item, area, starId) {
+// `tools`: show Keep / Swap / remove buttons on each piece (Create Outfit only).
+function tile(item, area, starId, tools) {
   if (!item) return "";
-  const star = starId && item.id === starId ? " anchored" : "";
-  return `<figure class="slot slot-${area}${star}">
-    <img src="${esc(shownPhoto(item))}" alt="${esc(item.name)}">
+  const star = starId && item.id === starId;
+  const isKept = kept.has(item.id);
+  const id = esc(item.id);
+  const buttons = !tools ? "" : star ? `<div class="tile-tools"><span class="tool on">★ Building around</span></div>` : `
+    <div class="tile-tools">
+      <button class="tool${isKept ? " on" : ""}" data-keep="${id}" title="Keep this piece when you click Try another">${isKept ? "🔒 Kept" : "Keep"}</button>
+      <button class="tool" data-swap="${id}" title="Swap just this piece">Swap</button>
+      ${canRemove(item) ? `<button class="tool" data-drop="${id}" title="Leave this piece out">✕</button>` : ""}
+    </div>`;
+  return `<figure class="slot slot-${area}${star ? " anchored" : ""}${isKept && tools ? " kept" : ""}">
+    <img src="${esc(shownThumb(item))}" alt="${esc(item.name)}">
+    ${buttons}
     <figcaption>${esc(item.name)}</figcaption>
   </figure>`;
 }
 
 // starId marks the "build around" item with a star on the board.
-function boardHtml(o, starId) {
-  const t = (item, area) => tile(item, area, starId);
+function boardHtml(o, starId, tools = false) {
+  const t = (item, area) => tile(item, area, starId, tools);
   return `<div class="board ${o.dress ? "has-dress" : ""} ${o.outerwear ? "" : "no-outer"}">
     ${t(o.outerwear, "outer")}
     ${o.dress ? t(o.dress, "dress") : t(o.top, "top") + t(o.bottom, "bottom")}
@@ -357,32 +398,79 @@ async function refreshPrefs() {
   $("#learned-note").textContent = n ? `Learning from your ${n} rating${n === 1 ? "" : "s"}.` : "";
 }
 
+// Pieces every new outfit must include: the "build around" item and kept pieces.
+function fixedPieces() {
+  const fixed = items.filter((i) => kept.has(i.id));
+  return anchor && !kept.has(anchor.id) ? [anchor, ...fixed] : fixed;
+}
+
 function makeOutfit(note = "") {
   const msg = $("#create-msg");
-  current = generateOutfit(items, occSelect.value, anchor, prefs);
+  current = generateOutfit(items, occSelect.value, fixedPieces(), prefs);
   if (!current) {
-    msg.textContent = missingFor(items, occSelect.value, anchor);
+    msg.textContent = missingFor(items, occSelect.value, fixedPieces());
     $("#board-wrap").innerHTML = "";
     $("#shuffle").hidden = $("#rate-bar").hidden = true;
     return;
   }
-  msg.textContent = typeof note === "string" ? note : "";
-  $("#board-wrap").innerHTML = boardHtml(current, anchor && anchor.id);
+  showCurrent(typeof note === "string" ? note : "");
+}
+
+// Draw the current outfit, ready to rate.
+function showCurrent(note = "") {
+  $("#create-msg").textContent = note;
+  $("#board-wrap").innerHTML = boardHtml(current, anchor && anchor.id, true);
   $("#shuffle").hidden = $("#rate-bar").hidden = false;
   $("#save-outfit").disabled = $("#dislike-outfit").disabled = false;
+  $("#keep-hint").textContent = kept.size
+    ? `🔒 ${kept.size} kept piece${kept.size === 1 ? "" : "s"} will stay when you click Try another.`
+    : "Tip: tap Keep on pieces you like, then Try another to change the rest.";
 }
+
+const TYPE_NAMES = {
+  top: "top", bottom: "bottom", dress: "dress", outerwear: "coat or jacket",
+  shoes: "pair of shoes", bag: "bag", accessory: "accessory",
+};
+
+// Keep / Swap / remove one piece of the outfit on the board.
+$("#board-wrap").addEventListener("click", (e) => {
+  const { keep, swap, drop } = e.target.dataset;
+  if (!current || !(keep || swap || drop)) return;
+  if (keep) {
+    kept.has(keep) ? kept.delete(keep) : kept.add(keep);
+    return showCurrent();
+  }
+  if (swap) {
+    const piece = items.find((i) => i.id === swap);
+    const next = swapPiece(items, occSelect.value, current, swap, prefs);
+    if (!next) {
+      $("#create-msg").textContent = `No other ${TYPE_NAMES[piece.category]} in your closet suits ${OCCASIONS[occSelect.value].label}.`;
+      return;
+    }
+    kept.delete(swap);
+    current = next;
+    return showCurrent();
+  }
+  const next = removePiece(current, drop);
+  if (next) {
+    kept.delete(drop);
+    current = next;
+    showCurrent();
+  }
+});
 
 // ---------- Build an outfit around one item ----------
 function setAnchor(item) {
   anchor = item;
   $("#anchor-bar").hidden = !item;
   if (item) {
-    $("#anchor-img").src = shownPhoto(item);
+    $("#anchor-img").src = shownThumb(item);
     $("#anchor-name").textContent = item.name;
   }
 }
 
 function buildAround(id) {
+  kept.clear();
   setAnchor(items.find((i) => i.id === id));
   // Keep the chosen occasion if the item suits it; otherwise switch to one that does.
   if (!fits(anchor, OCCASIONS[occSelect.value])) {
@@ -398,7 +486,11 @@ $("#anchor-clear").addEventListener("click", () => {
   makeOutfit();
 });
 
-$("#generate").addEventListener("click", () => makeOutfit());
+// "Create outfit" starts fresh; "Try another" keeps the pieces marked Keep.
+$("#generate").addEventListener("click", () => {
+  kept.clear();
+  makeOutfit();
+});
 $("#shuffle").addEventListener("click", () => makeOutfit());
 
 const rateBody = () => JSON.stringify({ occasion: occSelect.value, itemIds: outfitItems(current).map((i) => i.id) });
@@ -407,7 +499,13 @@ const rateBody = () => JSON.stringify({ occasion: occSelect.value, itemIds: outf
 $("#save-outfit").addEventListener("click", async () => {
   if (!current) return;
   $("#save-outfit").disabled = $("#dislike-outfit").disabled = true;
-  const saved = await api("/api/outfits", { method: "POST", headers: { "Content-Type": "application/json" }, body: rateBody() });
+  let saved;
+  try {
+    saved = await api("/api/outfits", { method: "POST", headers: { "Content-Type": "application/json" }, body: rateBody() });
+  } catch (err) {
+    $("#save-outfit").disabled = $("#dislike-outfit").disabled = false;
+    return showError(err);
+  }
   await refreshPrefs();
   $("#create-msg").textContent = saved.alreadySaved
     ? "You already love this one. It's in Saved Outfits."
@@ -418,7 +516,13 @@ $("#save-outfit").addEventListener("click", async () => {
 $("#dislike-outfit").addEventListener("click", async () => {
   if (!current) return;
   $("#save-outfit").disabled = $("#dislike-outfit").disabled = true;
-  const result = await api("/api/dislikes", { method: "POST", headers: { "Content-Type": "application/json" }, body: rateBody() });
+  let result;
+  try {
+    result = await api("/api/dislikes", { method: "POST", headers: { "Content-Type": "application/json" }, body: rateBody() });
+  } catch (err) {
+    $("#save-outfit").disabled = $("#dislike-outfit").disabled = false;
+    return showError(err);
+  }
   await refreshPrefs();
   makeOutfit(result.wasSaved
     ? "Got it. You'd saved that one before, so it's been removed from Saved Outfits. Here's another."
@@ -456,6 +560,9 @@ $("#saved-list").addEventListener("click", async (e) => {
 });
 
 // ---------- Start ----------
-api("/api/items").then((data) => { items = data; renderCloset(); });
+api("/api/items").then((data) => { items = data; renderCloset(); }).catch((err) => {
+  $("#closet-grid").innerHTML = `<p class="msg">Couldn't load your closet: ${esc(err.message)}</p>`;
+  showError(err);
+});
 api("/api/settings").then((s) => { aiReady = s.hasKey; });
 refreshPrefs();

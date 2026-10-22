@@ -36,25 +36,29 @@ function byCat(items, occ, cat) {
   return items.filter((i) => i.category === cat && fits(i, occ));
 }
 
-// The items available for each slot. If the user chose an item to "build
-// around" (the anchor), its slot holds only that item, whatever the occasion.
-function pools(items, occ, anchor) {
-  const A = anchor ? anchor.category : null;
-  const pool = (cat) => (A === cat ? [anchor] : byCat(items, occ, cat));
+// The items available for each slot. `fixed` are pieces the owner wants in
+// the outfit: the item they're building around, and pieces they chose to keep.
+// A fixed piece's slot holds only that piece, whatever the occasion.
+function pools(items, occ, fixed = []) {
+  const fixedOf = (cat) => fixed.filter((i) => i.category === cat);
+  const pool = (cat) => (fixedOf(cat).length ? [fixedOf(cat)[0]] : byCat(items, occ, cat));
+  const fixedCats = new Set(fixed.map((i) => i.category));
   const p = {
     dress: pool("dress"), top: pool("top"), bottom: pool("bottom"),
     shoes: pool("shoes"), outerwear: pool("outerwear"), bag: pool("bag"),
-    accessory: byCat(items, occ, "accessory").filter((i) => !anchor || i.id !== anchor.id),
+    fixedAccessories: fixedOf("accessory"),
+    accessory: byCat(items, occ, "accessory").filter((i) => !fixed.some((f) => f.id === i.id)),
+    fixedCats,
   };
   // A chosen top or bottom rules out a dress, and a chosen dress rules out separates.
-  p.canDress = p.dress.length > 0 && A !== "top" && A !== "bottom";
-  p.canSeparates = p.top.length > 0 && p.bottom.length > 0 && A !== "dress";
+  p.canDress = p.dress.length > 0 && !fixedCats.has("top") && !fixedCats.has("bottom");
+  p.canSeparates = p.top.length > 0 && p.bottom.length > 0 && !fixedCats.has("dress");
   return p;
 }
 
 // Build one candidate outfit (or null if the closet is missing a needed piece).
-function buildOnce(items, occ, anchor) {
-  const p = pools(items, occ, anchor);
+function buildOnce(items, occ, fixed) {
+  const p = pools(items, occ, fixed);
   const { canDress, canSeparates } = p;
   const dresses = p.dress, tops = p.top, bottoms = p.bottom, shoes = p.shoes;
   if (!canDress && !canSeparates) return null;
@@ -69,16 +73,13 @@ function buildOnce(items, occ, anchor) {
   }
   outfit.shoes = pick(shoes);
 
-  const A = anchor ? anchor.category : null;
   const outer = p.outerwear;
-  if (outer.length && (A === "outerwear" || occ.outerwear || Math.random() < 0.3)) outfit.outerwear = pick(outer);
+  if (outer.length && (p.fixedCats.has("outerwear") || occ.outerwear || Math.random() < 0.3)) outfit.outerwear = pick(outer);
 
   if (p.bag.length) outfit.bag = pick(p.bag);
 
   const acc = p.accessory.sort(() => Math.random() - 0.5);
-  outfit.accessories = A === "accessory"
-    ? [anchor, ...acc].slice(0, Math.max(1, occ.accessories))
-    : acc.slice(0, occ.accessories);
+  outfit.accessories = [...p.fixedAccessories, ...acc].slice(0, Math.max(p.fixedAccessories.length, occ.accessories));
   return outfit;
 }
 
@@ -123,37 +124,85 @@ function preferenceScore(list, prefs) {
 const RATING_WEIGHT = 0.2;
 const CHOOSINESS = 0.5;
 
-// Try many combinations, then pick one at random, favoring good color harmony
-// and what the owner's ratings say they like (lower score = more likely).
-function generateOutfit(items, occasionKey, anchor, prefs) {
+const isDisliked = (o, prefs) => prefs && prefs.disliked.has(outfitKey(outfitItems(o).map((it) => it.id)));
+
+// Pick one of several outfits at random, favoring good color harmony and what
+// the owner's ratings say they like (lower score = more likely).
+function chooseWeighted(outfits, prefs) {
+  const scored = outfits.map((o) => {
+    const list = outfitItems(o);
+    return { o, score: colorScore(list) - (prefs ? RATING_WEIGHT * preferenceScore(list, prefs) : 0) };
+  });
+  const lowest = Math.min(...scored.map((c) => c.score));
+  const weights = scored.map((c) => Math.exp(-(c.score - lowest) / CHOOSINESS));
+  let r = Math.random() * weights.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < scored.length; i++) if ((r -= weights[i]) <= 0) return scored[i].o;
+  return scored[scored.length - 1].o;
+}
+
+// Try many combinations and pick a good one. `fixed`: pieces that must be in it.
+function generateOutfit(items, occasionKey, fixed, prefs) {
   const occ = OCCASIONS[occasionKey];
   const candidates = [];
   let fallback = null; // used only if every combination tried was disliked before
   for (let i = 0; i < 60; i++) {
-    const o = buildOnce(items, occ, anchor);
+    const o = buildOnce(items, occ, fixed);
     if (!o) break;
-    const list = outfitItems(o);
-    if (prefs && prefs.disliked.has(outfitKey(list.map((it) => it.id)))) { fallback = fallback || o; continue; }
-    const score = colorScore(list) - (prefs ? RATING_WEIGHT * preferenceScore(list, prefs) : 0);
-    candidates.push({ o, score });
+    if (isDisliked(o, prefs)) { fallback = fallback || o; continue; }
+    candidates.push(o);
   }
-  if (!candidates.length) return fallback;
-  const lowest = Math.min(...candidates.map((c) => c.score));
-  const weights = candidates.map((c) => Math.exp(-(c.score - lowest) / CHOOSINESS));
-  let r = Math.random() * weights.reduce((a, b) => a + b, 0);
-  for (let i = 0; i < candidates.length; i++) if ((r -= weights[i]) <= 0) return candidates[i].o;
-  return candidates[candidates.length - 1].o;
+  return candidates.length ? chooseWeighted(candidates, prefs) : fallback;
+}
+
+// ---------- Changing one piece ----------
+const SLOTS = ["dress", "top", "bottom", "outerwear", "shoes", "bag"];
+
+// Where an item sits in an outfit: { slot } or { accessoryIndex }.
+function findPiece(outfit, itemId) {
+  const slot = SLOTS.find((k) => outfit[k] && outfit[k].id === itemId);
+  if (slot) return { slot, item: outfit[slot] };
+  const accessoryIndex = (outfit.accessories || []).findIndex((a) => a.id === itemId);
+  return accessoryIndex >= 0 ? { accessoryIndex, item: outfit.accessories[accessoryIndex] } : null;
+}
+
+function withPiece(outfit, where, item) {
+  const o = { ...outfit, accessories: [...(outfit.accessories || [])] };
+  if (where.slot) o[where.slot] = item;
+  else if (item) o.accessories[where.accessoryIndex] = item;
+  else o.accessories.splice(where.accessoryIndex, 1);
+  if (where.slot && !item) delete o[where.slot];
+  return o;
+}
+
+// Replace one piece with another of the same type that suits the occasion,
+// favoring good matches. Returns null if there's no other choice.
+function swapPiece(items, occasionKey, outfit, itemId, prefs) {
+  const where = findPiece(outfit, itemId);
+  if (!where) return null;
+  const occ = OCCASIONS[occasionKey];
+  const inOutfit = new Set(outfitItems(outfit).map((i) => i.id));
+  const options = items.filter((i) => i.category === where.item.category && fits(i, occ) && !inOutfit.has(i.id));
+  const candidates = options.map((alt) => withPiece(outfit, where, alt)).filter((o) => !isDisliked(o, prefs));
+  return candidates.length ? chooseWeighted(candidates, prefs) : null;
+}
+
+// Coats, bags and accessories can be left out; a dress, top, bottom or shoes can't.
+const OPTIONAL = new Set(["outerwear", "bag", "accessory"]);
+const canRemove = (item) => OPTIONAL.has(item.category);
+
+function removePiece(outfit, itemId) {
+  const where = findPiece(outfit, itemId);
+  return where && canRemove(where.item) ? withPiece(outfit, where, null) : null;
 }
 
 // Explain what's missing when no outfit can be made.
-function missingFor(items, occasionKey, anchor) {
+function missingFor(items, occasionKey, fixed = []) {
   const occ = OCCASIONS[occasionKey];
-  const p = pools(items, occ, anchor);
-  const A = anchor ? anchor.category : null;
+  const p = pools(items, occ, fixed);
   const need = [];
   if (!p.canDress && !p.canSeparates) {
-    if (A === "top") need.push("a bottom (pants or skirt)");
-    else if (A === "bottom") need.push("a top");
+    if (p.fixedCats.has("top")) need.push("a bottom (pants or skirt)");
+    else if (p.fixedCats.has("bottom")) need.push("a top");
     else need.push("a dress, or a top and a bottom");
   }
   if (!p.shoes.length) need.push("shoes");

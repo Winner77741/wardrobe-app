@@ -93,6 +93,10 @@
 
       <div class="filter-row">
         <h2>My closet <span id="item-count" class="muted"></span></h2>
+        <select id="closet-sort" aria-label="Order">
+          <option value="added">Order added</option>
+          <option value="notworn">Not worn lately first</option>
+        </select>
         <select id="closet-filter">
           <option value="">All types</option>
           <option value="top">Tops</option>
@@ -159,6 +163,7 @@
       <div id="rate-bar" class="rate-bar" hidden>
         <button id="save-outfit" class="rate love">👍 Love it <span class="muted">(saves it)</span></button>
         <button id="dislike-outfit" class="rate">👎 Not for me</button>
+        <button id="wear-outfit" class="rate">👗 Wearing it today</button>
         <span id="learned-note" class="muted"></span>
       </div>
       <p id="keep-hint" class="muted keep-hint"></p>
@@ -229,6 +234,7 @@
 
     <!-- SAVED -->
     <section id="view-saved" class="view">
+      <div id="worn-section"></div>
       <h2>Saved outfits</h2>
       <div id="saved-list"></div>
     </section>

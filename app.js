@@ -299,6 +299,7 @@ const shownPhoto = (i) => (i.cutout && i.useCutout !== false ? i.cutout : i.phot
 const shownThumb = (i) => (i.cutout && i.useCutout !== false ? i.cutoutThumb || i.cutout : i.thumb || i.photo);
 
 $("#closet-filter").addEventListener("change", renderCloset);
+$("#closet-sort").addEventListener("change", renderCloset);
 
 const LEVELS = ["", "Very casual", "Casual", "Smart casual", "Dressy", "Formal"];
 const WEATHER_LABELS = { warm: "☀️ Warm days", cold: "❄️ Cold days" };
@@ -306,6 +307,11 @@ const WEATHER_LABELS = { warm: "☀️ Warm days", cold: "❄️ Cold days" };
 function renderCloset() {
   const filter = $("#closet-filter").value;
   const shown = items.filter((i) => !filter || i.category === filter);
+  if ($("#closet-sort").value === "notworn" && prefs) {
+    // Never worn first, then the longest since last worn.
+    const since = (i) => (prefs.lastWorn.has(i.id) ? prefs.lastWorn.get(i.id) : Infinity);
+    shown.sort((a, b) => since(b) - since(a));
+  }
   $("#item-count").textContent = `(${items.length} item${items.length === 1 ? "" : "s"})`;
   const grid = $("#closet-grid");
   if (!shown.length) {
@@ -321,6 +327,7 @@ function renderCloset() {
         <span class="muted">${esc(i.category)} · ${LEVELS[i.formality]}</span>
         ${i.colors.length ? `<span class="muted">${esc(i.colors.join(", "))}</span>` : ""}
         ${WEATHER_LABELS[i.weather] ? `<span class="muted">${WEATHER_LABELS[i.weather]}</span>` : ""}
+        ${prefs ? `<span class="muted worn">${lastWornLabel(i)}</span>` : ""}
       </div>
       <div class="item-actions">
         <button class="link style-it" data-style="${esc(i.id)}">Style it</button>
@@ -449,14 +456,27 @@ const occSelect = $("#occasion");
 occSelect.innerHTML = Object.entries(OCCASIONS)
   .map(([k, o]) => `<option value="${k}">${o.label}</option>`).join("");
 
-// What the app has learned from thumbs up (saved outfits) and thumbs down.
+// What the app has learned from thumbs up (saved outfits), thumbs down and
+// what was worn recently.
 let prefs = null;
 async function refreshPrefs() {
-  const [liked, disliked] = await Promise.all([api("/api/outfits"), api("/api/dislikes")]);
-  prefs = learnPreferences(liked, disliked);
+  const [liked, disliked, wears] = await Promise.all([api("/api/outfits"), api("/api/dislikes"), api("/api/wears")]);
+  prefs = learnPreferences(liked, disliked, wears);
   const n = liked.length + disliked.length;
   $("#learned-note").textContent = n ? `Learning from your ${n} rating${n === 1 ? "" : "s"}.` : "";
+  renderCloset(); // "Last worn" labels
 }
+
+// "Worn today", "Worn 3 days ago", "Not worn yet".
+function lastWornLabel(item) {
+  const days = prefs && prefs.lastWorn.get(item.id);
+  if (days === undefined) return "Not worn yet";
+  return days === 0 ? "Worn today" : days === 1 ? "Worn yesterday" : `Worn ${days} days ago`;
+}
+const dayLabel = (iso) => {
+  const d = daysSince(iso);
+  return d === 0 ? "Today" : d === 1 ? "Yesterday" : new Date(iso).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+};
 
 // ---------- Weather ----------
 // The day's weather for outfits ({ kind, rainy, snowy }), or null when off.
@@ -520,7 +540,7 @@ function showCurrent(note = "") {
   $("#create-msg").textContent = note;
   $("#board-wrap").innerHTML = boardHtml(current, anchor && anchor.id, true);
   $("#shuffle").hidden = $("#rate-bar").hidden = false;
-  $("#save-outfit").disabled = $("#dislike-outfit").disabled = false;
+  $("#save-outfit").disabled = $("#dislike-outfit").disabled = $("#wear-outfit").disabled = false;
   $("#keep-hint").textContent = kept.size
     ? `🔒 ${kept.size} kept piece${kept.size === 1 ? "" : "s"} will stay when you click Try another.`
     : "Tip: tap Keep on pieces you like, then Try another to change the rest.";
@@ -629,34 +649,87 @@ $("#dislike-outfit").addEventListener("click", async () => {
     : "Got it, the app won't suggest that one again. Here's another.");
 });
 
+// "I'm wearing this today": recorded so those pieces come up less for about a week.
+async function logWorn(itemIds, occasion) {
+  await api("/api/wears", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itemIds, occasion }) });
+  await refreshPrefs();
+}
+
+$("#wear-outfit").addEventListener("click", async () => {
+  if (!current) return;
+  $("#wear-outfit").disabled = true;
+  try {
+    await logWorn(outfitItems(current).map((i) => i.id), occSelect.value);
+  } catch (err) {
+    $("#wear-outfit").disabled = false;
+    return showError(err);
+  }
+  $("#create-msg").textContent = "Logged as worn today. These pieces will come up less for about a week. Have a great time!";
+});
+
 // ---------- Saved ----------
+const occasionLabel = (key) => (OCCASIONS[key] ? OCCASIONS[key].label : "Outfit");
+const itemsOf = (ids) => ids.map((id) => items.find((i) => i.id === id)).filter(Boolean);
+
 async function renderSaved() {
-  const outfits = await api("/api/outfits");
+  const [outfits, wears] = await Promise.all([api("/api/outfits"), api("/api/wears")]);
+
+  // Recently worn: the last 30 days, newest first.
+  const recent = wears.filter((w) => daysSince(w.createdAt) <= 30).reverse();
+  $("#worn-section").innerHTML = !recent.length ? "" : `<h2>Recently worn</h2>` + recent.map((w) => `
+    <div class="card saved worn-card">
+      <div class="saved-head">
+        <strong>${esc(dayLabel(w.createdAt))}</strong>
+        <span class="muted">${esc(occasionLabel(w.occasion))}</span>
+        <button class="link danger" data-del-wear="${esc(w.id)}">Remove</button>
+      </div>
+      ${boardHtml(slotsFromItems(itemsOf(w.itemIds)))}
+    </div>`).join("");
+
   const list = $("#saved-list");
   if (!outfits.length) {
     list.innerHTML = `<p class="muted">No saved outfits yet.</p>`;
     return;
   }
-  list.innerHTML = outfits.slice().reverse().map((o) => {
-    const its = o.itemIds.map((id) => items.find((i) => i.id === id)).filter(Boolean);
-    const label = OCCASIONS[o.occasion] ? OCCASIONS[o.occasion].label : "Outfit";
-    return `<div class="card saved">
+  list.innerHTML = outfits.slice().reverse().map((o) => `<div class="card saved">
       <div class="saved-head">
-        <strong>${esc(label)}</strong>
+        <strong>${esc(occasionLabel(o.occasion))}</strong>
         <span class="muted">${new Date(o.createdAt).toLocaleDateString()}</span>
+        <button class="link style-it" data-wear-saved="${esc(o.id)}">👗 Wearing it today</button>
         <button class="link danger" data-del-outfit="${esc(o.id)}">Delete</button>
       </div>
-      ${boardHtml(slotsFromItems(its))}
-    </div>`;
-  }).join("");
+      ${boardHtml(slotsFromItems(itemsOf(o.itemIds)))}
+    </div>`).join("");
 }
 
 $("#saved-list").addEventListener("click", async (e) => {
-  const id = e.target.dataset.delOutfit;
-  if (!id || !confirm("Delete this saved outfit? Your clothes stay in your closet.")) return;
-  await api("/api/outfits/" + id, { method: "DELETE" });
-  renderSaved();
-  refreshPrefs();
+  const { delOutfit, wearSaved } = e.target.dataset;
+  try {
+    if (wearSaved) {
+      const o = (await api("/api/outfits")).find((x) => x.id === wearSaved);
+      e.target.disabled = true;
+      await logWorn(o.itemIds, o.occasion);
+      return renderSaved();
+    }
+    if (!delOutfit || !confirm("Delete this saved outfit? Your clothes stay in your closet.")) return;
+    await api("/api/outfits/" + delOutfit, { method: "DELETE" });
+    renderSaved();
+    refreshPrefs();
+  } catch (err) {
+    showError(err);
+  }
+});
+
+$("#worn-section").addEventListener("click", async (e) => {
+  const id = e.target.dataset.delWear;
+  if (!id || !confirm("Remove this from your worn history?")) return;
+  try {
+    await api("/api/wears/" + id, { method: "DELETE" });
+    await refreshPrefs();
+    renderSaved();
+  } catch (err) {
+    showError(err);
+  }
 });
 
 // ---------- Start ----------

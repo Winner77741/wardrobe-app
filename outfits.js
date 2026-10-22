@@ -116,7 +116,13 @@ function outfitItems(outfit) {
 const pairKey = (a, b) => (a < b ? a + "|" + b : b + "|" + a);
 const outfitKey = (ids) => [...ids].sort().join(",");
 
-function learnPreferences(liked, disliked) {
+// Whole days between a date and today, in the owner's own time zone.
+function daysSince(iso) {
+  const day = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round((day(new Date()) - day(new Date(iso))) / 86400000);
+}
+
+function learnPreferences(liked, disliked, wears = []) {
   const pairs = new Map();
   const add = (ids, amount) => {
     for (let i = 0; i < ids.length; i++)
@@ -127,7 +133,26 @@ function learnPreferences(liked, disliked) {
   };
   liked.forEach((o) => add(o.itemIds, 1));
   disliked.forEach((o) => add(o.itemIds, -1));
-  return { pairs, disliked: new Set(disliked.map((o) => outfitKey(o.itemIds))) };
+  // When each item was last worn (days ago).
+  const lastWorn = new Map();
+  for (const w of wears) {
+    const days = daysSince(w.createdAt);
+    for (const id of w.itemIds) if (!lastWorn.has(id) || days < lastWorn.get(id)) lastWorn.set(id, days);
+  }
+  return { pairs, disliked: new Set(disliked.map((o) => outfitKey(o.itemIds))), lastWorn };
+}
+
+// Pieces worn in the last week are suggested less: a lot if worn today,
+// fading to nothing after 7 days. A nudge, not a ban (small closets need repeats).
+const WEAR_DAYS = 7;
+const WEAR_WEIGHT = 0.6;
+function wornPenalty(list, prefs) {
+  let total = 0;
+  for (const i of list) {
+    const days = prefs.lastWorn && prefs.lastWorn.get(i.id);
+    if (days !== undefined && days < WEAR_DAYS) total += (WEAR_DAYS - days) / WEAR_DAYS;
+  }
+  return total;
 }
 
 // Positive = the owner tends to like these items together.
@@ -159,7 +184,10 @@ const mixesSeasons = (o) => {
 function chooseWeighted(outfits, prefs) {
   const scored = outfits.map((o) => {
     const list = outfitItems(o);
-    return { o, score: colorScore(list) - (prefs ? RATING_WEIGHT * preferenceScore(list, prefs) : 0) };
+    return {
+      o,
+      score: colorScore(list) + (prefs ? WEAR_WEIGHT * wornPenalty(list, prefs) - RATING_WEIGHT * preferenceScore(list, prefs) : 0),
+    };
   });
   const lowest = Math.min(...scored.map((c) => c.score));
   const weights = scored.map((c) => Math.exp(-(c.score - lowest) / CHOOSINESS));

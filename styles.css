@@ -127,7 +127,9 @@ label.button.primary, a.button.primary { background: var(--accent); color: #fff;
 .bulk-row.added [data-remove] { display: none; }
 .bulk-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-top: 14px; border-top: 1px solid var(--line); }
 
-.filter-row { display: flex; align-items: center; justify-content: space-between; margin-top: 24px; }
+.filter-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+.filter-row h2 { margin-right: auto; }
+.item-info .worn { font-style: italic; }
 
 /* Closet grid */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
@@ -236,7 +238,8 @@ label.button.primary, a.button.primary { background: var(--accent); color: #fff;
 /* Saved */
 .saved { padding: 16px; margin-bottom: 20px; }
 .saved-head { display: flex; align-items: center; gap: 12px; }
-.saved-head button { margin-left: auto; }
+.saved-head { flex-wrap: wrap; }
+.saved-head button:first-of-type { margin-left: auto; }
 .saved .board { grid-template-rows: 160px 160px 130px; border: none; padding: 8px 0 0; }
 
 @media (max-width: 700px) {

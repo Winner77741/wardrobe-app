@@ -39,6 +39,7 @@ function renderBulk() {
         <select name="category">${form.elements.category.innerHTML}</select>
         <input name="colors" placeholder="Colors">
         <select name="formality">${form.elements.formality.innerHTML}</select>
+        <select name="weather">${form.elements.weather.innerHTML}</select>
         <input name="tags" placeholder="Tags">
         <p class="bulk-status"></p>
       </div>
@@ -105,6 +106,7 @@ async function suggestRow(row) {
     el.querySelector('[name="category"]').value = details.category;
     el.querySelector('[name="colors"]').value = details.colors.join(", ");
     el.querySelector('[name="formality"]').value = String(details.formality);
+    el.querySelector('[name="weather"]').value = details.weather || "any";
     el.querySelector('[name="tags"]').value = details.tags.join(", ");
     bulkCost += cost;
     row.state = "ready";
@@ -128,7 +130,7 @@ $("#bulk-add").addEventListener("click", async () => {
   const rows = bulkRows.filter((r) => r.state === "ready");
   const fields = (row) => {
     const el = bulkRowEl(row);
-    return Object.fromEntries(["name", "category", "colors", "formality", "tags"]
+    return Object.fromEntries(["name", "category", "colors", "formality", "weather", "tags"]
       .map((n) => [n, el.querySelector(`[name="${n}"]`).value]));
   };
 

@@ -46,8 +46,64 @@ function showView(name) {
   document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "view-" + name));
   if (name === "saved") renderSaved();
-  if (name === "settings") renderSettings();
+  if (name === "settings") { renderSettings(); renderWeatherSettings(); }
+  if (name === "create") weatherReady = refreshWeather();
 }
+let weatherReady = Promise.resolve();
+
+// ---------- Weather settings ----------
+function renderWeatherSettings() {
+  const s = loadWeatherSettings();
+  $("#weather-status").innerHTML = s && s.place
+    ? `<span class="ok">✓ Weather for ${esc(s.place.name)}.</span> Search below to change it.`
+    : "Weather is off. Find your town to turn it on.";
+  $("#unit-select").value = (s && s.unit) || defaultUnit();
+  $("#weather-off").hidden = !(s && s.place);
+}
+
+function choosePlace(place) {
+  saveWeatherSettings({ ...(loadWeatherSettings() || {}), place, unit: $("#unit-select").value });
+  $("#place-results").innerHTML = "";
+  $("#weather-msg").textContent = `Saved. Outfits now follow the weather ${place.name === "your location" ? "where you are" : "in " + place.name.split(",")[0]}.`;
+  renderWeatherSettings();
+}
+
+let placeChoices = [];
+$("#place-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("#weather-msg").textContent = "Looking up…";
+  try {
+    placeChoices = await searchPlaces(e.target.elements.q.value.trim());
+    $("#weather-msg").textContent = placeChoices.length ? "Which one?" : "No town found by that name. Check the spelling.";
+    $("#place-results").innerHTML = placeChoices
+      .map((p, i) => `<button type="button" data-place="${i}">${esc(p.name)}</button>`).join("");
+  } catch (err) {
+    $("#weather-msg").textContent = err.message;
+  }
+});
+$("#place-results").addEventListener("click", (e) => {
+  const i = e.target.dataset.place;
+  if (i !== undefined) choosePlace(placeChoices[Number(i)]);
+});
+$("#use-location").addEventListener("click", () => {
+  if (!navigator.geolocation) return ($("#weather-msg").textContent = "This device can't share its location.");
+  $("#weather-msg").textContent = "Finding your location…";
+  navigator.geolocation.getCurrentPosition(
+    (pos) => choosePlace({ name: "your location", lat: +pos.coords.latitude.toFixed(2), lon: +pos.coords.longitude.toFixed(2) }),
+    () => { $("#weather-msg").textContent = "Couldn't get your location. You can type your town instead."; },
+    { timeout: 15000 },
+  );
+});
+$("#unit-select").addEventListener("change", (e) => {
+  const s = loadWeatherSettings();
+  if (s) saveWeatherSettings({ ...s, unit: e.target.value });
+  $("#weather-msg").textContent = "Saved.";
+});
+$("#weather-off").addEventListener("click", () => {
+  saveWeatherSettings(null);
+  $("#weather-msg").textContent = "Weather is off. Outfits no longer follow the forecast.";
+  renderWeatherSettings();
+});
 
 document.querySelectorAll(".tab").forEach((btn) =>
   btn.addEventListener("click", () => showView(btn.dataset.view)));
@@ -85,6 +141,7 @@ async function suggestFromPhoto(file) {
     form.elements.category.value = details.category;
     form.elements.colors.value = details.colors.join(", ");
     form.elements.formality.value = String(details.formality);
+    form.elements.weather.value = details.weather || "any";
     form.elements.tags.value = details.tags.join(", ");
     note.textContent = `Filled in by AI. Please check before adding. (Cost: ${(cost * 100).toFixed(2)}¢)`;
   } catch (err) {
@@ -244,6 +301,7 @@ const shownThumb = (i) => (i.cutout && i.useCutout !== false ? i.cutoutThumb || 
 $("#closet-filter").addEventListener("change", renderCloset);
 
 const LEVELS = ["", "Very casual", "Casual", "Smart casual", "Dressy", "Formal"];
+const WEATHER_LABELS = { warm: "☀️ Warm days", cold: "❄️ Cold days" };
 
 function renderCloset() {
   const filter = $("#closet-filter").value;
@@ -262,6 +320,7 @@ function renderCloset() {
         <strong>${esc(i.name)}</strong>
         <span class="muted">${esc(i.category)} · ${LEVELS[i.formality]}</span>
         ${i.colors.length ? `<span class="muted">${esc(i.colors.join(", "))}</span>` : ""}
+        ${WEATHER_LABELS[i.weather] ? `<span class="muted">${WEATHER_LABELS[i.weather]}</span>` : ""}
       </div>
       <div class="item-actions">
         <button class="link style-it" data-style="${esc(i.id)}">Style it</button>
@@ -294,7 +353,7 @@ const editForm = $("#edit-form");
 let editingId = null;
 
 // Reuse the dropdown choices from the "Add an item" form.
-for (const name of ["category", "formality"]) {
+for (const name of ["category", "formality", "weather"]) {
   editForm.elements[name].innerHTML = form.elements[name].innerHTML;
 }
 
@@ -306,6 +365,7 @@ function openEdit(id) {
   editForm.elements.category.value = item.category;
   editForm.elements.colors.value = item.colors.join(", ");
   editForm.elements.formality.value = String(item.formality);
+  editForm.elements.weather.value = item.weather || "any";
   editForm.elements.tags.value = item.tags.join(", ");
   const box = editForm.elements.useCutout;
   box.checked = item.useCutout !== false;
@@ -398,6 +458,40 @@ async function refreshPrefs() {
   $("#learned-note").textContent = n ? `Learning from your ${n} rating${n === 1 ? "" : "s"}.` : "";
 }
 
+// ---------- Weather ----------
+// The day's weather for outfits ({ kind, rainy, snowy }), or null when off.
+let currentWeather = null;
+
+async function refreshWeather() {
+  const line = $("#weather-line");
+  const settings = loadWeatherSettings();
+  const when = $("#when").value;
+  currentWeather = null;
+  if (!settings || !settings.place) {
+    line.innerHTML = `To match outfits to the weather, set your town in <a href="#" data-goto="settings">Settings</a>.`;
+    return;
+  }
+  if (when === "off") {
+    line.textContent = "Weather is ignored for these outfits.";
+    return;
+  }
+  try {
+    const day = (await getForecast(settings.place))[Number(when)];
+    currentWeather = weatherKind(day);
+    line.textContent = describeDay(day, settings.place, settings.unit || defaultUnit(), when === "0" ? "Today" : "Tomorrow");
+  } catch {
+    line.textContent = "Couldn't get the weather right now, so outfits ignore it.";
+  }
+}
+
+$("#weather-line").addEventListener("click", (e) => {
+  if (e.target.dataset.goto) { e.preventDefault(); showView(e.target.dataset.goto); }
+});
+$("#when").addEventListener("change", async () => {
+  await refreshWeather();
+  if (current) makeOutfit();
+});
+
 // Pieces every new outfit must include: the "build around" item and kept pieces.
 function fixedPieces() {
   const fixed = items.filter((i) => kept.has(i.id));
@@ -406,7 +500,12 @@ function fixedPieces() {
 
 function makeOutfit(note = "") {
   const msg = $("#create-msg");
-  current = generateOutfit(items, occSelect.value, fixedPieces(), prefs);
+  current = generateOutfit(items, occSelect.value, fixedPieces(), prefs, currentWeather);
+  if (!current && currentWeather) {
+    // Nothing fits both the occasion and the weather: still show the best outfit.
+    current = generateOutfit(items, occSelect.value, fixedPieces(), prefs, null);
+    if (current) note = `Nothing in your closet fully suits ${currentWeather.kind} weather for this occasion, so this outfit ignores the weather.`;
+  }
   if (!current) {
     msg.textContent = missingFor(items, occSelect.value, fixedPieces());
     $("#board-wrap").innerHTML = "";
@@ -442,7 +541,7 @@ $("#board-wrap").addEventListener("click", (e) => {
   }
   if (swap) {
     const piece = items.find((i) => i.id === swap);
-    const next = swapPiece(items, occSelect.value, current, swap, prefs);
+    const next = swapPiece(items, occSelect.value, current, swap, prefs, currentWeather);
     if (!next) {
       $("#create-msg").textContent = `No other ${TYPE_NAMES[piece.category]} in your closet suits ${OCCASIONS[occSelect.value].label}.`;
       return;
@@ -487,8 +586,9 @@ $("#anchor-clear").addEventListener("click", () => {
 });
 
 // "Create outfit" starts fresh; "Try another" keeps the pieces marked Keep.
-$("#generate").addEventListener("click", () => {
+$("#generate").addEventListener("click", async () => {
   kept.clear();
+  await weatherReady;
   makeOutfit();
 });
 $("#shuffle").addEventListener("click", () => makeOutfit());

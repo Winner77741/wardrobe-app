@@ -115,7 +115,7 @@ label.button.primary, a.button.primary { background: var(--accent); color: #fff;
 }
 .bulk-row:first-child { margin-top: 14px; }
 .bulk-row img { width: 90px; height: 110px; object-fit: contain; background: #faf8f5; border-radius: 8px; }
-.bulk-fields { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 8px; }
+.bulk-fields { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr; gap: 8px; }
 .bulk-fields input, .bulk-fields select {
   font: inherit; font-size: .9em; padding: 6px; border: 1px solid var(--line); border-radius: 6px;
   background: #fff; color: var(--ink); min-width: 0;
@@ -205,6 +205,11 @@ label.button.primary, a.button.primary { background: var(--accent); color: #fff;
 .slot-bag { grid-area: bag; }
 .slot-acc { grid-area: acc; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 .slot-acc .slot { flex: 1; }
+
+/* Weather */
+.weather-line { flex-basis: 100%; margin: 0; }
+.place-results { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.place-results button { text-align: left; }
 
 /* Error message at the bottom of the screen */
 .toast {

@@ -32,22 +32,32 @@ function colorScore(items) {
   return bold.size <= 1 ? 0 : bold.size - 1;
 }
 
-function byCat(items, occ, cat) {
-  return items.filter((i) => i.category === cat && fits(i, occ));
+// Does an item suit the day's weather? `w` is { kind: "warm"|"mild"|"cold",
+// rainy } from weather.js, or null when weather is off.
+function suitsWeather(item, w) {
+  if (!w) return true;
+  if (w.kind === "warm" && item.weather === "cold") return false;
+  if (w.kind === "cold" && item.weather === "warm") return false;
+  if ((w.rainy || w.snowy) && item.category === "shoes" && item.weather === "warm") return false; // no open sandals
+  return true;
+}
+
+function byCat(items, occ, cat, w) {
+  return items.filter((i) => i.category === cat && fits(i, occ) && suitsWeather(i, w));
 }
 
 // The items available for each slot. `fixed` are pieces the owner wants in
 // the outfit: the item they're building around, and pieces they chose to keep.
 // A fixed piece's slot holds only that piece, whatever the occasion.
-function pools(items, occ, fixed = []) {
+function pools(items, occ, fixed = [], w = null) {
   const fixedOf = (cat) => fixed.filter((i) => i.category === cat);
-  const pool = (cat) => (fixedOf(cat).length ? [fixedOf(cat)[0]] : byCat(items, occ, cat));
+  const pool = (cat) => (fixedOf(cat).length ? [fixedOf(cat)[0]] : byCat(items, occ, cat, w));
   const fixedCats = new Set(fixed.map((i) => i.category));
   const p = {
     dress: pool("dress"), top: pool("top"), bottom: pool("bottom"),
     shoes: pool("shoes"), outerwear: pool("outerwear"), bag: pool("bag"),
     fixedAccessories: fixedOf("accessory"),
-    accessory: byCat(items, occ, "accessory").filter((i) => !fixed.some((f) => f.id === i.id)),
+    accessory: byCat(items, occ, "accessory", w).filter((i) => !fixed.some((f) => f.id === i.id)),
     fixedCats,
   };
   // A chosen top or bottom rules out a dress, and a chosen dress rules out separates.
@@ -57,8 +67,8 @@ function pools(items, occ, fixed = []) {
 }
 
 // Build one candidate outfit (or null if the closet is missing a needed piece).
-function buildOnce(items, occ, fixed) {
-  const p = pools(items, occ, fixed);
+function buildOnce(items, occ, fixed, w) {
+  const p = pools(items, occ, fixed, w);
   const { canDress, canSeparates } = p;
   const dresses = p.dress, tops = p.top, bottoms = p.bottom, shoes = p.shoes;
   if (!canDress && !canSeparates) return null;
@@ -73,12 +83,23 @@ function buildOnce(items, occ, fixed) {
   }
   outfit.shoes = pick(shoes);
 
-  const outer = p.outerwear;
-  if (outer.length && (p.fixedCats.has("outerwear") || occ.outerwear || Math.random() < 0.3)) outfit.outerwear = pick(outer);
+  // Extras (coat, bag, accessories) must suit the main pieces: no felt hat
+  // with sandals, no straw bag with a wool coat.
+  const main = outfitItems(outfit);
+  const clash = main.some((i) => i.weather === "warm") ? "cold" : main.some((i) => i.weather === "cold") ? "warm" : null;
+  const suits = (i) => p.fixedCats.has(i.category) || i.weather !== clash;
 
-  if (p.bag.length) outfit.bag = pick(p.bag);
+  // Coat or jacket: always on cold days, never forced on warm ones.
+  const outer = p.outerwear.filter(suits);
+  const warm = w && w.kind === "warm";
+  const wantOuter = p.fixedCats.has("outerwear") || (w && w.kind === "cold") ||
+    (!warm && (occ.outerwear || Math.random() < 0.3));
+  if (outer.length && wantOuter) outfit.outerwear = pick(outer);
 
-  const acc = p.accessory.sort(() => Math.random() - 0.5);
+  const bags = p.bag.filter(suits);
+  if (bags.length) outfit.bag = pick(bags);
+
+  const acc = p.accessory.filter(suits).sort(() => Math.random() - 0.5);
   outfit.accessories = [...p.fixedAccessories, ...acc].slice(0, Math.max(p.fixedAccessories.length, occ.accessories));
   return outfit;
 }
@@ -126,6 +147,13 @@ const CHOOSINESS = 0.5;
 
 const isDisliked = (o, prefs) => prefs && prefs.disliked.has(outfitKey(outfitItems(o).map((it) => it.id)));
 
+// Shorts with a felt hat, sandals with a wool coat: warm-weather and
+// cold-weather pieces never go together, whatever the forecast.
+const mixesSeasons = (o) => {
+  const list = outfitItems(o);
+  return list.some((i) => i.weather === "warm") && list.some((i) => i.weather === "cold");
+};
+
 // Pick one of several outfits at random, favoring good color harmony and what
 // the owner's ratings say they like (lower score = more likely).
 function chooseWeighted(outfits, prefs) {
@@ -141,14 +169,14 @@ function chooseWeighted(outfits, prefs) {
 }
 
 // Try many combinations and pick a good one. `fixed`: pieces that must be in it.
-function generateOutfit(items, occasionKey, fixed, prefs) {
+function generateOutfit(items, occasionKey, fixed, prefs, w = null) {
   const occ = OCCASIONS[occasionKey];
   const candidates = [];
   let fallback = null; // used only if every combination tried was disliked before
   for (let i = 0; i < 60; i++) {
-    const o = buildOnce(items, occ, fixed);
+    const o = buildOnce(items, occ, fixed, w);
     if (!o) break;
-    if (isDisliked(o, prefs)) { fallback = fallback || o; continue; }
+    if (isDisliked(o, prefs) || mixesSeasons(o)) { fallback = fallback || o; continue; }
     candidates.push(o);
   }
   return candidates.length ? chooseWeighted(candidates, prefs) : fallback;
@@ -176,13 +204,14 @@ function withPiece(outfit, where, item) {
 
 // Replace one piece with another of the same type that suits the occasion,
 // favoring good matches. Returns null if there's no other choice.
-function swapPiece(items, occasionKey, outfit, itemId, prefs) {
+function swapPiece(items, occasionKey, outfit, itemId, prefs, w = null) {
   const where = findPiece(outfit, itemId);
   if (!where) return null;
   const occ = OCCASIONS[occasionKey];
   const inOutfit = new Set(outfitItems(outfit).map((i) => i.id));
-  const options = items.filter((i) => i.category === where.item.category && fits(i, occ) && !inOutfit.has(i.id));
-  const candidates = options.map((alt) => withPiece(outfit, where, alt)).filter((o) => !isDisliked(o, prefs));
+  const options = items.filter((i) => i.category === where.item.category && fits(i, occ) &&
+    suitsWeather(i, w) && !inOutfit.has(i.id));
+  const candidates = options.map((alt) => withPiece(outfit, where, alt)).filter((o) => !isDisliked(o, prefs) && !mixesSeasons(o));
   return candidates.length ? chooseWeighted(candidates, prefs) : null;
 }
 
@@ -196,9 +225,9 @@ function removePiece(outfit, itemId) {
 }
 
 // Explain what's missing when no outfit can be made.
-function missingFor(items, occasionKey, fixed = []) {
+function missingFor(items, occasionKey, fixed = [], w = null) {
   const occ = OCCASIONS[occasionKey];
-  const p = pools(items, occ, fixed);
+  const p = pools(items, occ, fixed, w);
   const need = [];
   if (!p.canDress && !p.canSeparates) {
     if (p.fixedCats.has("top")) need.push("a bottom (pants or skirt)");

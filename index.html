@@ -60,6 +60,13 @@
               <option value="5">5 – Formal / evening</option>
             </select>
           </label>
+          <label>Best for
+            <select name="weather">
+              <option value="any" selected>Any weather</option>
+              <option value="warm">Warm days (sandals, shorts, linen…)</option>
+              <option value="cold">Cold days (wool coats, boots, knits…)</option>
+            </select>
+          </label>
           <label>Tags (optional) <input name="tags" placeholder="summer, favorite"></label>
           <button type="submit" class="primary">Add to closet</button>
           <p id="add-msg" class="msg"></p>
@@ -114,6 +121,7 @@
           <label>Type <select name="category"></select></label>
           <label>Colors <input name="colors"></label>
           <label>How dressy? <select name="formality"></select></label>
+          <label>Best for <select name="weather"></select></label>
           <label>Tags (optional) <input name="tags"></label>
           <label class="check"><input type="checkbox" name="useCutout"> Remove background</label>
           <p class="muted hint">Click the photo to replace it. <span id="cutout-note"></span></p>
@@ -137,8 +145,16 @@
         <label>Occasion
           <select id="occasion"></select>
         </label>
+        <label>When
+          <select id="when">
+            <option value="0">Today</option>
+            <option value="1">Tomorrow</option>
+            <option value="off">Ignore weather</option>
+          </select>
+        </label>
         <button id="generate" class="primary">Create outfit</button>
         <button id="shuffle" hidden>Try another</button>
+        <p id="weather-line" class="muted weather-line"></p>
       </div>
       <div id="rate-bar" class="rate-bar" hidden>
         <button id="save-outfit" class="rate love">👍 Love it <span class="muted">(saves it)</span></button>
@@ -169,6 +185,23 @@
           <select id="model-select"></select>
         </label>
         <p id="settings-msg" class="msg"></p>
+      </div>
+      <div class="card settings">
+        <h2>Weather</h2>
+        <p class="muted">Match outfits to the forecast: no wool on hot days, no sandals in the rain.
+          Only your town's map position is sent to Open-Meteo, a free weather service.</p>
+        <p id="weather-status"></p>
+        <form id="place-form" class="key-row">
+          <input name="q" placeholder="Your town, e.g. Chicago" autocomplete="off" required>
+          <button type="submit">Find</button>
+        </form>
+        <div id="place-results" class="place-results"></div>
+        <p><button id="use-location">Use my current location</button></p>
+        <label class="model-row">Temperatures in
+          <select id="unit-select"><option value="F">°F (Fahrenheit)</option><option value="C">°C (Celsius)</option></select>
+        </label>
+        <p><button id="weather-off" class="link danger">Turn weather off</button></p>
+        <p id="weather-msg" class="msg"></p>
       </div>
       <div class="card settings">
         <h2>Closet file</h2>
@@ -207,6 +240,7 @@
   <script src="phone-bundle.js"></script>
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});</script>
   <script src="outfits.js"></script>
+  <script src="weather.js"></script>
   <script src="app.js"></script>
   <script src="bulk.js"></script>
 </body>

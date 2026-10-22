@@ -1,8 +1,8 @@
 // Offline support for the home-screen app: keeps a copy of the app's own files
 // so it opens without internet. Your closet isn't here; it's in the app's storage.
 // The cache name and file list below are filled in by scripts/build-web.js.
-const CACHE = "wardrobe-207d37162c89";
-const FILES = ["./","app.js","bulk.js","icons/icon-180.png","icons/icon-192.png","icons/icon-512.png","index.html","manifest.webmanifest","outfits.js","phone-bundle.js","styles.css"];
+const CACHE = "wardrobe-3e3c96c7b013";
+const FILES = ["./","app.js","bulk.js","icons/icon-180.png","icons/icon-192.png","icons/icon-512.png","index.html","manifest.webmanifest","outfits.js","phone-bundle.js","styles.css","weather.js"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));

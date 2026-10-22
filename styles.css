@@ -213,6 +213,26 @@ label.button.primary, a.button.primary { background: var(--accent); color: #fff;
 .place-results { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .place-results button { text-align: left; }
 
+/* Trips */
+.trips-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.trips-head h2 { margin: 0; }
+.trip-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; margin: 12px 0; flex-wrap: wrap; }
+.trip-card strong, .trip-card span { display: block; }
+.trip-card-buttons { display: flex; gap: 8px; align-items: center; }
+.trip-form input, .trip-form select { font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
+.trip-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.trip-row label { flex: 1; min-width: 140px; }
+.trip-place { color: var(--ink); font-weight: 600; }
+.trip-events { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 4px; }
+.trip-events li { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: var(--bg); border-radius: 8px; }
+.trip-weather { margin: 4px 0 0; }
+.packing { max-width: none; }
+.packing h3 { margin: 14px 0 6px; font-size: .95em; color: var(--muted); }
+.pack-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; cursor: pointer; }
+.pack-row input { width: 20px; height: 20px; }
+.pack-row img { width: 40px; height: 48px; object-fit: contain; background: #fff; border-radius: 6px; }
+.pack-row.packed span { text-decoration: line-through; color: var(--muted); }
+
 /* Error message at the bottom of the screen */
 .toast {
   position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 50;

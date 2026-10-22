@@ -276,3 +276,66 @@ function slotsFromItems(items) {
   }
   return o;
 }
+
+// ---------- Trips ----------
+// Plan one outfit per trip event so the suitcase stays small: each piece not
+// already packed "costs" a little, and wearing the exact same outfit twice
+// costs more. Color harmony, weather and ratings still count as usual.
+const NEW_PIECE_COST = 0.9;
+const REPEAT_COST = 2;
+
+function planOne(items, entry, packed, usedKeys, prefs) {
+  const occ = OCCASIONS[entry.occasion];
+  const tryWith = (w) => {
+    const found = [];
+    for (let i = 0; i < 80; i++) {
+      const o = buildOnce(items, occ, [], w);
+      if (!o) break;
+      if (!isDisliked(o, prefs) && !mixesSeasons(o)) found.push(o);
+    }
+    return found;
+  };
+  let candidates = tryWith(entry.w);
+  let ignoredWeather = false;
+  if (!candidates.length && entry.w) { candidates = tryWith(null); ignoredWeather = candidates.length > 0; }
+  if (!candidates.length) return null;
+  const scored = candidates.map((o) => {
+    const list = outfitItems(o);
+    const fresh = list.filter((i) => !packed.has(i.id)).length;
+    const repeat = usedKeys.has(outfitKey(list.map((i) => i.id))) ? REPEAT_COST : 0;
+    const rated = prefs ? RATING_WEIGHT * preferenceScore(list, prefs) : 0;
+    return { o, score: colorScore(list) + NEW_PIECE_COST * fresh + repeat - rated };
+  });
+  const lowest = Math.min(...scored.map((c) => c.score));
+  const weights = scored.map((c) => Math.exp(-(c.score - lowest) / 0.3)); // choosier than everyday outfits
+  let r = Math.random() * weights.reduce((a, b) => a + b, 0);
+  let pickIt = scored[scored.length - 1].o;
+  for (let i = 0; i < scored.length; i++) if ((r -= weights[i]) <= 0) { pickIt = scored[i].o; break; }
+  return { outfit: pickIt, ignoredWeather };
+}
+
+// entries: [{ day, occasion, w }] in trip order. Returns one plan per entry:
+// { day, occasion, outfit (or null if the closet can't dress it), ignoredWeather }.
+function planTrip(items, entries, prefs) {
+  const packed = new Set();
+  const usedKeys = new Set();
+  return entries.map((entry) => {
+    const got = planOne(items, entry, packed, usedKeys, prefs);
+    if (got) {
+      const ids = outfitItems(got.outfit).map((i) => i.id);
+      ids.forEach((id) => packed.add(id));
+      usedKeys.add(outfitKey(ids));
+    }
+    return { day: entry.day, occasion: entry.occasion, outfit: got && got.outfit, ignoredWeather: !!(got && got.ignoredWeather) };
+  });
+}
+
+// A different outfit for one entry, still favoring pieces the rest of the trip packs.
+function replanTripEntry(items, plans, index, entry, prefs) {
+  const others = plans.filter((p, i) => i !== index && p.outfit);
+  const packed = new Set(others.flatMap((p) => outfitItems(p.outfit).map((i) => i.id)));
+  const usedKeys = new Set(others.map((p) => outfitKey(outfitItems(p.outfit).map((i) => i.id))));
+  if (plans[index].outfit) usedKeys.add(outfitKey(outfitItems(plans[index].outfit).map((i) => i.id)));
+  const got = planOne(items, entry, packed, usedKeys, prefs);
+  return { day: entry.day, occasion: entry.occasion, outfit: got && got.outfit, ignoredWeather: !!(got && got.ignoredWeather) };
+}

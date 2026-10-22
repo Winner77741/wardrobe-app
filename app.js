@@ -48,6 +48,7 @@ function showView(name) {
   if (name === "saved") renderSaved();
   if (name === "settings") { renderSettings(); renderWeatherSettings(); }
   if (name === "create") weatherReady = refreshWeather();
+  if (name === "trips") renderTrips();
 }
 let weatherReady = Promise.resolve();
 

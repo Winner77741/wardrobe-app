@@ -20,6 +20,7 @@
       <button class="tab active" data-view="closet">My Closet</button>
       <button class="tab" data-view="create">Create Outfit</button>
       <button class="tab" data-view="saved">Saved Outfits</button>
+      <button class="tab" data-view="trips">Trips</button>
       <button class="tab" data-view="settings">Settings</button>
     </nav>
   </header>
@@ -171,6 +172,74 @@
       <div id="board-wrap"></div>
     </section>
 
+    <!-- TRIPS -->
+    <section id="view-trips" class="view">
+      <div id="trip-list-panel">
+        <div class="trips-head">
+          <h2>Trips</h2>
+          <button id="new-trip" class="primary">Plan a trip</button>
+        </div>
+        <div id="trip-list"></div>
+      </div>
+
+      <div id="trip-edit-panel" hidden>
+        <form id="trip-form" class="card settings trip-form">
+          <h2 id="trip-edit-title">New trip</h2>
+          <label class="model-row">Trip name <input name="name" placeholder="Weekend in Paris" maxlength="80"></label>
+          <div class="trip-row">
+            <label class="model-row">First day <input type="date" name="startDate" required></label>
+            <label class="model-row">Days <input type="number" name="days" min="1" max="21" required></label>
+          </div>
+          <p class="model-row">Where <span id="trip-place" class="trip-place"></span></p>
+          <div class="key-row">
+            <input name="placeQuery" placeholder="Change town, e.g. Paris" autocomplete="off">
+            <button type="button" id="trip-place-find">Find</button>
+          </div>
+          <div id="trip-place-results" class="place-results"></div>
+          <label class="model-row">Weather
+            <select name="weather">
+              <option value="auto">Use the forecast (up to about 2 weeks ahead)</option>
+              <option value="warm">Warm</option>
+              <option value="mild">Mild</option>
+              <option value="cold">Cold</option>
+            </select>
+          </label>
+          <h3>Outfits needed</h3>
+          <p class="muted">One everyday outfit per day to start. Add events like an opera night or a dinner out.</p>
+          <ul id="trip-events" class="trip-events"></ul>
+          <div class="key-row">
+            <select id="trip-event-day"></select>
+            <select id="trip-event-occasion"></select>
+            <button type="button" id="trip-add-event">Add</button>
+          </div>
+          <div class="dialog-buttons">
+            <button type="button" id="trip-cancel">Cancel</button>
+            <button type="submit" class="primary">Plan outfits</button>
+          </div>
+          <p id="trip-form-msg" class="msg"></p>
+        </form>
+      </div>
+
+      <div id="trip-plan-panel" hidden>
+        <p><button id="trip-back" class="link">← All trips</button></p>
+        <div class="trips-head">
+          <div>
+            <h2 id="trip-plan-title"></h2>
+            <p id="trip-plan-sub" class="muted"></p>
+          </div>
+          <div class="trip-card-buttons">
+            <button id="trip-edit">Edit trip</button>
+            <button id="trip-replan-all">Plan again</button>
+          </div>
+        </div>
+        <div class="card settings packing">
+          <div class="trips-head"><h2>Packing list</h2><span id="packing-count" class="muted"></span></div>
+          <div id="packing-list"></div>
+        </div>
+        <div id="trip-outfits"></div>
+      </div>
+    </section>
+
     <!-- SETTINGS -->
     <section id="view-settings" class="view">
       <div class="card settings">
@@ -243,7 +312,7 @@
 
   <div id="toast" class="toast" role="alert" hidden></div>
 
-  <script>window.WARDROBE_STANDALONE = true; window.WARDROBE_VERSION = "2026-10-22 · 8d787d";</script>
+  <script>window.WARDROBE_STANDALONE = true; window.WARDROBE_VERSION = "2026-10-22 · 254f11";</script>
   <script src="phone-bundle.js"></script>
   <script>
     // Offline support. When a newer version of the app takes over, reload once so
@@ -258,5 +327,6 @@
   <script src="weather.js"></script>
   <script src="app.js"></script>
   <script src="bulk.js"></script>
+  <script src="trips.js"></script>
 </body>
 </html>

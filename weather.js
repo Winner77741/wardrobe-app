@@ -85,3 +85,26 @@ function describeDay(day, place, unit, whenLabel) {
   const where = place.name === "your location" ? "near you" : "in " + place.name.split(",")[0];
   return `${whenLabel} ${where}: ${SKY(day.code)}, feels like ${range}. Showing ${kind} outfits.${extra}`;
 }
+
+// Up to 16 days of forecast, by date ("2026-10-25" → day), for planning trips.
+// Dates further ahead aren't in it yet. Remembered for 30 minutes per place.
+const longForecasts = new Map();
+async function getLongForecast(place) {
+  const key = `${place.lat},${place.lon}`;
+  const hit = longForecasts.get(key);
+  if (hit && Date.now() - hit.at < 30 * 60 * 1000) return hit.byDate;
+  const url = "https://api.open-meteo.com/v1/forecast?daily=apparent_temperature_max,apparent_temperature_min," +
+    `precipitation_probability_max,weather_code&timezone=auto&forecast_days=16&latitude=${place.lat}&longitude=${place.lon}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Couldn't get the weather forecast right now.");
+  const d = (await res.json()).daily;
+  const byDate = new Map(d.time.map((date, i) => [date, {
+    date,
+    feelsMaxC: d.apparent_temperature_max[i],
+    feelsMinC: d.apparent_temperature_min[i],
+    rainChance: d.precipitation_probability_max[i] || 0,
+    code: d.weather_code[i],
+  }]));
+  longForecasts.set(key, { at: Date.now(), byDate });
+  return byDate;
+}

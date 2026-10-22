@@ -244,7 +244,15 @@
 
   <script>window.WARDROBE_STANDALONE = true;</script>
   <script src="phone-bundle.js"></script>
-  <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});</script>
+  <script>
+    // Offline support. When a newer version of the app takes over, reload once so
+    // the new version shows right away instead of on the next visit.
+    if ("serviceWorker" in navigator) {
+      const hadVersion = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener("controllerchange", () => { if (hadVersion) location.reload(); });
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    }
+  </script>
   <script src="outfits.js"></script>
   <script src="weather.js"></script>
   <script src="app.js"></script>

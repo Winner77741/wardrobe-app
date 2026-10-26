@@ -49,6 +49,7 @@ function showView(name) {
   if (name === "settings") { renderSettings(); renderWeatherSettings(); }
   if (name === "create") weatherReady = refreshWeather();
   if (name === "trips") renderTrips();
+  checkBackupReminder();
 }
 let weatherReady = Promise.resolve();
 
@@ -168,16 +169,42 @@ async function renderSettings() {
 }
 
 // In the iPhone app the closet file is made on the phone and shared from there.
-document.querySelector('a[href="/api/export"]').addEventListener("click", async (e) => {
+async function saveClosetFile(msg) {
+  msg.textContent = "Preparing your closet file…";
+  try {
+    const saved = await window.phoneExport();
+    msg.textContent = saved ? "Closet file saved." : "";
+    if (saved) $("#backup-nudge").hidden = true;
+  } catch (err) {
+    msg.textContent = "Couldn't make the closet file: " + err.message;
+  }
+}
+document.querySelector('a[href="/api/export"]').addEventListener("click", (e) => {
   if (!window.phoneExport) return; // on the Mac, the link downloads from the server
   e.preventDefault();
-  $("#import-msg").textContent = "Preparing your closet file…";
+  saveClosetFile($("#import-msg"));
+});
+
+// ---------- Reminder to save a closet file (phone app only) ----------
+// On the phone the closet lives only inside the app until a closet file is saved
+// somewhere else, so the app asks for one every 10 changes or week.
+let nudgeLater = false;
+async function checkBackupReminder() {
+  if (!window.phoneApi || nudgeLater) return;
   try {
-    await window.phoneExport();
-    $("#import-msg").textContent = "";
-  } catch (err) {
-    $("#import-msg").textContent = "Couldn't make the closet file: " + err.message;
+    const s = await api("/api/backup-status");
+    $("#backup-nudge-text").textContent = s.lastSavedAt
+      ? `${s.changes} change${s.changes === 1 ? "" : "s"} since you last saved a closet file.`
+      : "You haven't saved a closet file from this phone yet.";
+    $("#backup-nudge").hidden = !s.remind;
+  } catch {
+    // the reminder can wait
   }
+}
+$("#backup-nudge-save").addEventListener("click", () => saveClosetFile($("#backup-nudge-msg")));
+$("#backup-nudge-later").addEventListener("click", () => {
+  nudgeLater = true; // until the app is opened again
+  $("#backup-nudge").hidden = true;
 });
 
 $("#import-form").addEventListener("submit", async (e) => {
@@ -383,16 +410,24 @@ function openEdit(id) {
     : item.cutoutFailed ? "Couldn't find the item in this photo, so the original is used."
     : !canCutout() ? "Background removal isn't available in the phone app. Photos added on the Mac get it."
     : "Background removal hasn't finished for this photo yet.";
-  $("#edit-preview").src = shownPhoto(item);
+  $("#edit-preview").src = shownThumb(item); // the full photo replaces it when loaded
+  showFullPhoto(shownPhoto(item));
   $("#edit-msg").textContent = "";
   editDialog.showModal();
+}
+
+// In the phone app, full-size photos are loaded only when needed (phone/api.js).
+async function showFullPhoto(url) {
+  const id = editingId;
+  const src = window.phoneFullUrl ? await window.phoneFullUrl(url).catch(() => null) : url;
+  if (src && editingId === id && !editForm.elements.photo.files.length) $("#edit-preview").src = src;
 }
 
 // Switching background removal on or off shows the matching photo right away.
 editForm.elements.useCutout.addEventListener("change", () => {
   if (editForm.elements.photo.files.length) return;
   const item = items.find((i) => i.id === editingId);
-  $("#edit-preview").src = editForm.elements.useCutout.checked ? item.cutout : item.photo;
+  showFullPhoto(editForm.elements.useCutout.checked ? item.cutout : item.photo);
 });
 
 editForm.elements.photo.addEventListener("change", () => {
@@ -741,3 +776,4 @@ api("/api/items").then((data) => { items = data; renderCloset(); }).catch((err) 
 });
 api("/api/settings").then((s) => { aiReady = s.hasKey; });
 refreshPrefs();
+checkBackupReminder();

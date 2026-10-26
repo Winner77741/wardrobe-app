@@ -26,6 +26,17 @@
   </header>
 
   <main>
+    <!-- Phone app only: reminder to save a closet file -->
+    <div id="backup-nudge" class="card nudge" hidden>
+      <p><strong>Keep your closet safe.</strong> It's stored only in this app. <span id="backup-nudge-text"></span>
+        Save a closet file to iCloud Drive so it can't be lost if the app is ever deleted.</p>
+      <div class="nudge-buttons">
+        <button id="backup-nudge-save" class="primary">Save closet file</button>
+        <button id="backup-nudge-later" class="link">Later</button>
+      </div>
+      <p id="backup-nudge-msg" class="msg"></p>
+    </div>
+
     <!-- CLOSET -->
     <section id="view-closet" class="view active">
       <form id="add-form" class="card add-form">
@@ -312,7 +323,7 @@
 
   <div id="toast" class="toast" role="alert" hidden></div>
 
-  <script>window.WARDROBE_STANDALONE = true; window.WARDROBE_VERSION = "2026-10-22 · b16a35";</script>
+  <script>window.WARDROBE_STANDALONE = true; window.WARDROBE_VERSION = "2026-10-26 · 6edf1d";</script>
   <script src="phone-bundle.js"></script>
   <script>
     // Offline support. When a newer version of the app takes over, reload once so

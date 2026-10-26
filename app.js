@@ -166,10 +166,18 @@ async function renderSettings() {
   $("#learned-summary").textContent = `${liked.length} loved (saved) outfit${liked.length === 1 ? "" : "s"}, ` +
     `${disliked.length} thumbs down.`;
   $("#reset-dislikes").disabled = disliked.length === 0;
+  renderUndo();
 }
 
-// In the iPhone app the closet file is made on the phone and shared from there.
+// In the iPhone app the closet file is made on the phone and shared from there;
+// on the Mac it's downloaded from the server.
 async function saveClosetFile(msg) {
+  if (!window.phoneExport) {
+    location.href = "/api/export";
+    msg.textContent = "Your closet file is downloading. Keep it in iCloud Drive or on a USB stick.";
+    $("#backup-nudge").hidden = true;
+    return;
+  }
   msg.textContent = "Preparing your closet file…";
   try {
     const saved = await window.phoneExport();
@@ -185,17 +193,23 @@ document.querySelector('a[href="/api/export"]').addEventListener("click", (e) =>
   saveClosetFile($("#import-msg"));
 });
 
-// ---------- Reminder to save a closet file (phone app only) ----------
-// On the phone the closet lives only inside the app until a closet file is saved
-// somewhere else, so the app asks for one every 10 changes or week.
+// ---------- Reminder to save a closet file ----------
+// The closet is kept in one place only (inside the phone app, or on this Mac)
+// until a closet file is saved somewhere else, so the app asks for one after
+// changes (rule in lib/closet-rules.js).
 let nudgeLater = false;
 async function checkBackupReminder() {
-  if (!window.phoneApi || nudgeLater) return;
+  if (nudgeLater) return;
   try {
     const s = await api("/api/backup-status");
-    $("#backup-nudge-text").textContent = s.lastSavedAt
+    const where = window.phoneApi
+      ? "Your closet is stored only in this app. If the app is ever deleted, it's gone."
+      : "Your closet is kept only on this Mac. If the Mac is lost or breaks, it's gone.";
+    const since = s.lastSavedAt
       ? `${s.changes} change${s.changes === 1 ? "" : "s"} since you last saved a closet file.`
-      : "You haven't saved a closet file from this phone yet.";
+      : window.phoneApi ? "You haven't saved a closet file from this phone yet." : "You haven't saved a closet file yet.";
+    const what = window.phoneApi ? "Save a closet file to iCloud Drive." : "Download a closet file and keep it in iCloud Drive or on a USB stick.";
+    $("#backup-nudge-text").textContent = `${where} ${since} ${what}`;
     $("#backup-nudge").hidden = !s.remind;
   } catch {
     // the reminder can wait
@@ -207,20 +221,73 @@ $("#backup-nudge-later").addEventListener("click", () => {
   $("#backup-nudge").hidden = true;
 });
 
+// Before loading a closet file: what's in it, and a warning if it's older
+// than the latest changes here.
+function importQuestion({ file, current, older }) {
+  const when = (iso) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  const lines = [`This closet file ${file.exportedAt ? `was saved on ${when(file.exportedAt)} and ` : ""}has ` +
+    `${file.items} item${file.items === 1 ? "" : "s"} and ${file.outfits} saved outfit${file.outfits === 1 ? "" : "s"}.`];
+  if (current.items !== null) lines.push(`Your closet here has ${current.items} item${current.items === 1 ? "" : "s"}.`);
+  if (older) lines.push("", `⚠️ This file is OLDER than your latest changes here (${when(current.lastChangedAt)}). Loading it will undo those changes.`);
+  lines.push("", "Replace your whole closet with this file? A backup of your current closet is made first.");
+  return lines.join("\n");
+}
+
 $("#import-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const msg = $("#import-msg");
-  if (!confirm("Replace your whole closet with the one in this file? A backup of your current closet is made first.")) return;
+  msg.textContent = "Checking the closet file…";
+  let check;
+  try {
+    check = await api("/api/import-check", { method: "POST", body: new FormData(e.target) });
+  } catch (err) {
+    msg.textContent = err.message;
+    return;
+  }
+  msg.textContent = "";
+  if (!confirm(importQuestion(check))) return;
   msg.textContent = "Backing up your current closet, then loading the file…";
   try {
     const r = await api("/api/import", { method: "POST", body: new FormData(e.target) });
     e.target.reset();
-    msg.textContent = `Done: ${r.items} items, ${r.outfits} saved outfits and ${r.dislikes} thumbs down loaded. ` +
-      `Your previous closet is backed up in ${r.backup}.`;
-    items = await api("/api/items");
-    renderCloset();
-    refreshPrefs();
-    renderSettings();
+    msg.textContent = `Done: ${r.items} items, ${r.outfits} saved outfits and ${r.dislikes} thumbs down loaded.` +
+      (r.backup ? ` Your previous closet is backed up in ${r.backup}.` : "");
+    await reloadCloset();
+  } catch (err) {
+    msg.textContent = err.message;
+  }
+});
+
+// After the whole closet was replaced (a closet file loaded, or that undone).
+async function reloadCloset() {
+  items = await api("/api/items");
+  // An outfit on the Create board may use items that are gone now.
+  setAnchor(null);
+  kept.clear();
+  current = null;
+  $("#board-wrap").innerHTML = "";
+  $("#shuffle").hidden = $("#rate-bar").hidden = true;
+  renderCloset();
+  refreshPrefs();
+  renderSettings();
+}
+
+// Phone app: put back the closet from before the last closet file was loaded.
+async function renderUndo() {
+  const s = window.phoneApi ? await api("/api/backup-status").catch(() => null) : null;
+  $("#undo-row").hidden = !(s && s.undo);
+  if (s && s.undo) {
+    $("#undo-note").textContent = `Puts back your closet from before the last closet file was loaded ` +
+      `(${new Date(s.undo.at).toLocaleString()}, ${s.undo.items} item${s.undo.items === 1 ? "" : "s"}).`;
+  }
+}
+$("#undo-import").addEventListener("click", async () => {
+  if (!confirm("Put back your closet from before the last closet file was loaded? Changes made since then are lost.")) return;
+  const msg = $("#import-msg");
+  try {
+    const r = await api("/api/undo-import", { method: "POST" });
+    msg.textContent = `Done: your earlier closet (${r.items} items) is back.`;
+    await reloadCloset();
   } catch (err) {
     msg.textContent = err.message;
   }
@@ -395,6 +462,7 @@ for (const name of ["category", "formality", "weather"]) {
 
 function openEdit(id) {
   const item = items.find((i) => i.id === id);
+  if (!item) return;
   editingId = id;
   editForm.reset();
   editForm.elements.name.value = item.name;
@@ -562,6 +630,11 @@ function makeOutfit(note = "") {
     // Nothing fits both the occasion and the weather: still show the best outfit.
     current = generateOutfit(items, occSelect.value, fixedPieces(), prefs, null);
     if (current) note = `Nothing in your closet fully suits ${currentWeather.kind} weather for this occasion, so this outfit ignores the weather.`;
+  }
+  if (current && current.fallback) {
+    note = current.fallback === "disliked"
+      ? "Every outfit the app could make here is one you gave a thumbs down, so here's one anyway. Add a few more pieces for more choice."
+      : "The only outfits the app could make here mix warm- and cold-weather pieces. Here's one anyway; check the weather setting on your items.";
   }
   if (!current) {
     msg.textContent = missingFor(items, occSelect.value, fixedPieces());
@@ -744,6 +817,7 @@ $("#saved-list").addEventListener("click", async (e) => {
   try {
     if (wearSaved) {
       const o = (await api("/api/outfits")).find((x) => x.id === wearSaved);
+      if (!o) return renderSaved(); // deleted meanwhile
       e.target.disabled = true;
       await logWorn(o.itemIds, o.occasion);
       return renderSaved();

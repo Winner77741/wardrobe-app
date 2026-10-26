@@ -11,11 +11,33 @@ const OCCASIONS = {
   casual:  { label: "Casual day out",   min: 1, max: 2, outerwear: false, accessories: 1 },
 };
 
-// Colors that go with almost anything.
+// Colors that go with almost anything. A shade of one ("light grey", "off
+// white", "dark navy") is neutral too.
 const NEUTRALS = new Set([
   "black", "white", "cream", "ivory", "beige", "tan", "camel", "grey", "gray",
   "navy", "brown", "denim", "nude", "gold", "silver", "khaki", "charcoal",
+  "taupe", "stone", "ecru", "oatmeal", "chocolate", "bronze",
 ]);
+
+// Bold colors in the same family look planned together (red with burgundy,
+// blush with hot pink), so a family counts as one color.
+const COLOR_FAMILIES = {
+  red: ["red", "burgundy", "maroon", "wine", "crimson", "scarlet", "cherry", "oxblood", "rust"],
+  pink: ["pink", "blush", "rose", "fuchsia", "magenta", "coral", "salmon"],
+  orange: ["orange", "peach", "apricot", "terracotta", "tangerine"],
+  yellow: ["yellow", "mustard", "lemon", "ochre"],
+  green: ["green", "olive", "emerald", "sage", "mint", "forest", "lime", "teal"],
+  blue: ["blue", "cobalt", "sky", "turquoise", "aqua", "royal", "indigo"],
+  purple: ["purple", "lilac", "lavender", "plum", "violet", "mauve", "aubergine"],
+};
+const FAMILY_OF = new Map(Object.entries(COLOR_FAMILIES).flatMap(([family, shades]) => shades.map((c) => [c, family])));
+const baseColor = (c) => String(c).toLowerCase().trim().split(/\s+/).pop(); // "light grey" → "grey"
+const isNeutral = (c) => NEUTRALS.has(baseColor(c));
+const colorFamily = (c) => FAMILY_OF.get(baseColor(c)) || baseColor(c);
+
+// Patterned pieces (stripes, florals, prints…): two in one outfit usually clash.
+const PATTERN_WORDS = /\b(stripe[sd]?|floral|flowers?|plaid|check(ed)?|tartan|gingham|polka|dots?|print(ed)?|leopard|zebra|snake|animal|paisley|houndstooth|camo(uflage)?|tie-?dye)\b/i;
+const isPatterned = (item) => PATTERN_WORDS.test([item.name, ...(item.tags || [])].join(" "));
 
 function pick(list) {
   return list[Math.floor(Math.random() * list.length)];
@@ -25,11 +47,13 @@ function fits(item, occ) {
   return item.formality >= occ.min && item.formality <= occ.max;
 }
 
-// Fewer "statement" colors = more harmonious. Lower score is better.
+// Fewer "statement" colors (and at most one patterned piece) = more
+// harmonious. Lower score is better.
 function colorScore(items) {
   const bold = new Set();
-  for (const it of items) for (const c of it.colors) if (!NEUTRALS.has(c)) bold.add(c);
-  return bold.size <= 1 ? 0 : bold.size - 1;
+  for (const it of items) for (const c of it.colors) if (!isNeutral(c)) bold.add(colorFamily(c));
+  const patterned = items.filter(isPatterned).length;
+  return (bold.size <= 1 ? 0 : bold.size - 1) + Math.max(0, patterned - 1);
 }
 
 // Does an item suit the day's weather? `w` is { kind: "warm"|"mild"|"cold",
@@ -99,9 +123,42 @@ function buildOnce(items, occ, fixed, w) {
   const bags = p.bag.filter(suits);
   if (bags.length) outfit.bag = pick(bags);
 
+  // Accessories: at most one of each kind (one hat, one necklace…).
   const acc = p.accessory.filter(suits).sort(() => Math.random() - 0.5);
-  outfit.accessories = [...p.fixedAccessories, ...acc].slice(0, Math.max(p.fixedAccessories.length, occ.accessories));
+  const chosen = [...p.fixedAccessories];
+  const kinds = new Set(chosen.map(accessoryKind));
+  for (const a of acc) {
+    if (chosen.length >= Math.max(p.fixedAccessories.length, occ.accessories)) break;
+    if (kinds.has(accessoryKind(a))) continue;
+    kinds.add(accessoryKind(a));
+    chosen.push(a);
+  }
+  outfit.accessories = chosen;
   return outfit;
+}
+
+// What kind of accessory an item is, from its name (or tags): two of the same
+// kind never go in one outfit. Anything not recognised is a kind of its own.
+const ACCESSORY_KINDS = [
+  ["earrings", /\b(earrings?|studs?|hoops?)\b/],
+  ["necklace", /\b(necklace|pendant|choker|locket)\b/],
+  ["bracelet", /\b(bracelet|bangle|cuff)\b/],
+  ["ring", /\brings?\b/],
+  ["watch", /\bwatch\b/],
+  ["hat", /\b(hat|cap|beret|fedora|beanie|fascinator|headband|hair)\b/],
+  ["scarf", /\b(scarf|shawl|stole|wrap|pashmina|bandana)\b/],
+  ["belt", /\bbelt\b/],
+  ["glasses", /\b(sunglasses|glasses)\b/],
+  ["gloves", /\bgloves?\b/],
+  ["brooch", /\b(brooch|pin)\b/],
+  ["tie", /\b(tie|bow tie)\b/],
+];
+function accessoryKind(item) {
+  for (const text of [item.name, (item.tags || []).join(" ")]) {
+    const found = ACCESSORY_KINDS.find(([, re]) => re.test(String(text).toLowerCase()));
+    if (found) return found[0];
+  }
+  return "item:" + item.id;
 }
 
 function outfitItems(outfit) {
@@ -197,14 +254,17 @@ function chooseWeighted(outfits, prefs) {
 }
 
 // Try many combinations and pick a good one. `fixed`: pieces that must be in it.
+// If every combination tried was disliked before (or mixed warm and cold
+// pieces), one is shown anyway, marked `fallback` so the page can say so.
 function generateOutfit(items, occasionKey, fixed, prefs, w = null) {
   const occ = OCCASIONS[occasionKey];
   const candidates = [];
-  let fallback = null; // used only if every combination tried was disliked before
+  let fallback = null;
   for (let i = 0; i < 60; i++) {
     const o = buildOnce(items, occ, fixed, w);
     if (!o) break;
-    if (isDisliked(o, prefs) || mixesSeasons(o)) { fallback = fallback || o; continue; }
+    if (isDisliked(o, prefs)) { fallback = fallback || { ...o, fallback: "disliked" }; continue; }
+    if (mixesSeasons(o)) { fallback = fallback || { ...o, fallback: "seasons" }; continue; }
     candidates.push(o);
   }
   return candidates.length ? chooseWeighted(candidates, prefs) : fallback;

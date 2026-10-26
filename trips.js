@@ -223,6 +223,13 @@ async function openTripPlan(t) {
   renderTripPlan();
 }
 
+// An outfit missing its shoes, or its dress / top and bottom (a piece was
+// removed from the closet after the trip was planned).
+const complete = (o) => !!(o.shoes && (o.dress || (o.top && o.bottom)));
+// No outfit for an entry: either the closet can't dress it, or its pieces were removed.
+const noOutfitNote = (p) => (generateOutfit(items, p.occasion, [], null)
+  ? "No outfit planned here. Tap Another to plan one." : missingFor(items, p.occasion));
+
 function renderTripPlan() {
   showTripPanel("trip-plan-panel");
   $("#trip-plan-title").textContent = trip.name;
@@ -239,7 +246,8 @@ function renderTripPlan() {
         <button class="link style-it" data-replan="${i}">Another</button>
       </div>
       <p class="muted trip-weather">${esc(wx.note)}${p.ignoredWeather ? " · nothing fully suits this weather, so this outfit ignores it" : ""}</p>
-      ${p.outfit ? boardHtml(p.outfit) : `<p class="msg">${esc(missingFor(items, p.occasion))}</p>`}
+      ${p.outfit && !complete(p.outfit) ? `<p class="msg">Part of this outfit was removed from your closet. Tap Another for a new one.</p>` : ""}
+      ${p.outfit ? boardHtml(p.outfit) : `<p class="msg">${esc(noOutfitNote(p))}</p>`}
     </div>`;
   }).join("");
   renderPacking();

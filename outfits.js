@@ -286,6 +286,23 @@ function generateOutfit(items, occasionKey, fixed, prefs, w = null, shown = null
   return { ...chooseWeighted(candidates, prefs), seenAll: true };
 }
 
+// How many different outfits the closet can make for an occasion (found by
+// trying many combinations, so a very rare one may be missed), and how many of
+// them are saved. Disliked ones and warm-with-cold mixes don't count.
+function countOutfits(items, occasionKey, fixed, prefs, w = null) {
+  const occ = OCCASIONS[occasionKey];
+  const all = new Set();
+  const saved = new Set();
+  for (let i = 0; i < 1500; i++) {
+    const o = buildOnce(items, occ, fixed, w);
+    if (!o) break;
+    if (isDisliked(o, prefs) || mixesSeasons(o)) continue;
+    all.add(keyOf(o));
+    if (isSaved(o, prefs)) saved.add(keyOf(o));
+  }
+  return { total: all.size, saved: saved.size };
+}
+
 // ---------- Changing one piece ----------
 const SLOTS = ["dress", "top", "bottom", "outerwear", "shoes", "bag"];
 

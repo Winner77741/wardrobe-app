@@ -592,6 +592,8 @@ async function refreshWeather() {
   const settings = loadWeatherSettings();
   const when = $("#when").value;
   currentWeather = null;
+  // Today / Tomorrow / Ignore weather only mean something once a town is set.
+  $("#when-label").hidden = !(settings && settings.place);
   if (!settings || !settings.place) {
     line.innerHTML = `To match outfits to the weather, set your town in <a href="#" data-goto="settings">Settings</a>.`;
     return;
@@ -629,11 +631,29 @@ const shown = new Set();
 const shownKey = (o) => outfitKey(outfitItems(o).map((i) => i.id));
 occSelect.addEventListener("change", () => shown.clear());
 
+// "Outfit 4 of 15 for Casual day out": where Try another is in the list.
+// Counting takes a moment, so it's done once per occasion and weather.
+let countCache = { key: null, count: null };
+function showOutfitCount(w) {
+  const line = $("#outfit-count");
+  if (!current || kept.size) { line.textContent = ""; return; }
+  const key = [occSelect.value, anchor && anchor.id, JSON.stringify(w)].join("|");
+  if (countCache.key !== key || countCache.prefs !== prefs) {
+    countCache = { key, prefs, count: countOutfits(items, occSelect.value, fixedPieces(), prefs, w) };
+  }
+  const { total, saved } = countCache.count;
+  const of = Math.max(total, shown.size);
+  line.textContent = `Outfit ${shown.size} of ${of} for ${OCCASIONS[occSelect.value].label}` +
+    (saved ? `: new ones first, then your ${saved} saved.` : ".");
+}
+
 function makeOutfit(note = "") {
   const msg = $("#create-msg");
+  let usedWeather = currentWeather;
   current = generateOutfit(items, occSelect.value, fixedPieces(), prefs, currentWeather, shown);
   if (!current && currentWeather) {
     // Nothing fits both the occasion and the weather: still show the best outfit.
+    usedWeather = null;
     current = generateOutfit(items, occSelect.value, fixedPieces(), prefs, null, shown);
     if (current) note = `Nothing in your closet fully suits ${currentWeather.kind} weather for this occasion, so this outfit ignores the weather.`;
   }
@@ -647,6 +667,7 @@ function makeOutfit(note = "") {
     note = note || "You've seen every outfit the app can make here, so they start coming round again.";
   }
   if (current) shown.add(shownKey(current));
+  showOutfitCount(usedWeather);
   if (!current) {
     msg.textContent = missingFor(items, occSelect.value, fixedPieces());
     $("#board-wrap").innerHTML = "";
@@ -687,6 +708,7 @@ $("#board-wrap").addEventListener("click", (e) => {
   if (!current || !(keep || swap || drop)) return;
   if (keep) {
     kept.has(keep) ? kept.delete(keep) : kept.add(keep);
+    showOutfitCount(currentWeather); // hidden while pieces are kept
     return showCurrent();
   }
   if (swap) {

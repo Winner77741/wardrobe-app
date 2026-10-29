@@ -196,7 +196,11 @@ function learnPreferences(liked, disliked, wears = []) {
     const days = daysSince(w.createdAt);
     for (const id of w.itemIds) if (!lastWorn.has(id) || days < lastWorn.get(id)) lastWorn.set(id, days);
   }
-  return { pairs, disliked: new Set(disliked.map((o) => outfitKey(o.itemIds))), lastWorn };
+  return {
+    pairs, lastWorn,
+    disliked: new Set(disliked.map((o) => outfitKey(o.itemIds))),
+    saved: new Set(liked.map((o) => outfitKey(o.itemIds))),
+  };
 }
 
 // Pieces worn in the last week are suggested less: a lot if worn today,
@@ -227,7 +231,9 @@ function preferenceScore(list, prefs) {
 const RATING_WEIGHT = 0.2;
 const CHOOSINESS = 0.5;
 
-const isDisliked = (o, prefs) => prefs && prefs.disliked.has(outfitKey(outfitItems(o).map((it) => it.id)));
+const keyOf = (o) => outfitKey(outfitItems(o).map((it) => it.id));
+const isDisliked = (o, prefs) => prefs && prefs.disliked.has(keyOf(o));
+const isSaved = (o, prefs) => !!(prefs && prefs.saved && prefs.saved.has(keyOf(o)));
 
 // Shorts with a felt hat, sandals with a wool coat: warm-weather and
 // cold-weather pieces never go together, whatever the forecast.
@@ -256,18 +262,28 @@ function chooseWeighted(outfits, prefs) {
 // Try many combinations and pick a good one. `fixed`: pieces that must be in it.
 // If every combination tried was disliked before (or mixed warm and cold
 // pieces), one is shown anyway, marked `fallback` so the page can say so.
-function generateOutfit(items, occasionKey, fixed, prefs, w = null) {
+// `shown` (the Create page passes it): outfits already shown since the occasion
+// was picked. Then new outfits come first, saved ones only when nothing new is
+// left, and a repeat only when everything was shown (marked `seenAll`).
+function generateOutfit(items, occasionKey, fixed, prefs, w = null, shown = null) {
   const occ = OCCASIONS[occasionKey];
   const candidates = [];
   let fallback = null;
-  for (let i = 0; i < 60; i++) {
+  // More tries when avoiding repeats, so rarer combinations are found too.
+  for (let i = 0; i < (shown ? 200 : 60); i++) {
     const o = buildOnce(items, occ, fixed, w);
     if (!o) break;
     if (isDisliked(o, prefs)) { fallback = fallback || { ...o, fallback: "disliked" }; continue; }
     if (mixesSeasons(o)) { fallback = fallback || { ...o, fallback: "seasons" }; continue; }
     candidates.push(o);
   }
-  return candidates.length ? chooseWeighted(candidates, prefs) : fallback;
+  if (!candidates.length) return fallback;
+  if (!shown) return chooseWeighted(candidates, prefs);
+  const unseen = candidates.filter((o) => !shown.has(keyOf(o)));
+  const fresh = unseen.filter((o) => !isSaved(o, prefs));
+  if (fresh.length) return chooseWeighted(fresh, prefs);
+  if (unseen.length) return chooseWeighted(unseen, prefs);
+  return { ...chooseWeighted(candidates, prefs), seenAll: true };
 }
 
 // ---------- Changing one piece ----------

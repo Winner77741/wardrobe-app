@@ -623,12 +623,18 @@ function fixedPieces() {
   return anchor && !kept.has(anchor.id) ? [anchor, ...fixed] : fixed;
 }
 
+// Outfits shown since the occasion (or "build around" item) was picked, so
+// Create outfit and Try another show new ones before repeating any.
+const shown = new Set();
+const shownKey = (o) => outfitKey(outfitItems(o).map((i) => i.id));
+occSelect.addEventListener("change", () => shown.clear());
+
 function makeOutfit(note = "") {
   const msg = $("#create-msg");
-  current = generateOutfit(items, occSelect.value, fixedPieces(), prefs, currentWeather);
+  current = generateOutfit(items, occSelect.value, fixedPieces(), prefs, currentWeather, shown);
   if (!current && currentWeather) {
     // Nothing fits both the occasion and the weather: still show the best outfit.
-    current = generateOutfit(items, occSelect.value, fixedPieces(), prefs, null);
+    current = generateOutfit(items, occSelect.value, fixedPieces(), prefs, null, shown);
     if (current) note = `Nothing in your closet fully suits ${currentWeather.kind} weather for this occasion, so this outfit ignores the weather.`;
   }
   if (current && current.fallback) {
@@ -636,6 +642,11 @@ function makeOutfit(note = "") {
       ? "Every outfit the app could make here is one you gave a thumbs down, so here's one anyway. Add a few more pieces for more choice."
       : "The only outfits the app could make here mix warm- and cold-weather pieces. Here's one anyway; check the weather setting on your items.";
   }
+  if (current && current.seenAll) {
+    shown.clear();
+    note = note || "You've seen every outfit the app can make here, so they start coming round again.";
+  }
+  if (current) shown.add(shownKey(current));
   if (!current) {
     msg.textContent = missingFor(items, occSelect.value, fixedPieces());
     $("#board-wrap").innerHTML = "";
@@ -651,9 +662,18 @@ function showCurrent(note = "") {
   $("#board-wrap").innerHTML = boardHtml(current, anchor && anchor.id, true);
   $("#shuffle").hidden = $("#rate-bar").hidden = false;
   $("#save-outfit").disabled = $("#dislike-outfit").disabled = $("#wear-outfit").disabled = false;
+  showSavedBadge();
   $("#keep-hint").textContent = kept.size
     ? `🔒 ${kept.size} kept piece${kept.size === 1 ? "" : "s"} will stay when you click Try another.`
     : "Tip: tap Keep on pieces you like, then Try another to change the rest.";
+}
+
+// An outfit that's already in Saved Outfits says so up front, and Love it can't save it twice.
+function showSavedBadge() {
+  const saved = !!current && isSaved(current, prefs);
+  $("#saved-badge").hidden = !saved;
+  $("#save-outfit").disabled = saved;
+  $("#save-outfit").innerHTML = saved ? "👍 Already saved" : '👍 Love it <span class="muted">(saves it)</span>';
 }
 
 const TYPE_NAMES = {
@@ -700,6 +720,7 @@ function setAnchor(item) {
 
 function buildAround(id) {
   kept.clear();
+  shown.clear();
   setAnchor(items.find((i) => i.id === id));
   // Keep the chosen occasion if the item suits it; otherwise switch to one that does.
   if (!fits(anchor, OCCASIONS[occSelect.value])) {
@@ -711,6 +732,7 @@ function buildAround(id) {
 }
 
 $("#anchor-clear").addEventListener("click", () => {
+  shown.clear();
   setAnchor(null);
   makeOutfit();
 });
@@ -737,6 +759,7 @@ $("#save-outfit").addEventListener("click", async () => {
     return showError(err);
   }
   await refreshPrefs();
+  showSavedBadge();
   $("#create-msg").textContent = saved.alreadySaved
     ? "You already love this one. It's in Saved Outfits."
     : "Saved to Saved Outfits. The app will suggest looks like this more often.";

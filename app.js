@@ -154,6 +154,9 @@ async function suggestFromPhoto(file) {
 // ---------- Settings ----------
 async function renderSettings() {
   $("#app-version").textContent = window.WARDROBE_VERSION ? `App version ${window.WARDROBE_VERSION}` : "App version: Mac";
+  if (!updateComplete()) {
+    $("#app-version").innerHTML += ` <span class="update-warning">The last update only partly arrived. Close Wardrobe fully and open it again.</span>`;
+  }
   const s = await api("/api/settings");
   if (window.phoneApi) $("#key-where").textContent = "The key is saved only on this phone.";
   aiReady = s.hasKey;
@@ -168,6 +171,14 @@ async function renderSettings() {
   $("#reset-dislikes").disabled = disliked.length === 0;
   renderUndo();
 }
+
+// The home-screen app stamps the page and this file with the same build code
+// (scripts/build-web.js). Different codes mean the phone has a new page with
+// old code, or the other way round.
+const updateComplete = () => !window.WARDROBE_BUILD || window.WARDROBE_BUILD === window.WARDROBE_APP_BUILD;
+window.addEventListener("load", () => {
+  if (!updateComplete()) showError(new Error("Wardrobe only partly updated. Close it fully and open it again."));
+});
 
 // In the iPhone app the closet file is made on the phone and shared from there;
 // on the Mac it's downloaded from the server.
@@ -896,3 +907,5 @@ api("/api/items").then((data) => { items = data; renderCloset(); }).catch((err) 
 api("/api/settings").then((s) => { aiReady = s.hasKey; });
 refreshPrefs();
 checkBackupReminder();
+
+window.WARDROBE_APP_BUILD = "3b4407cf1a56";

@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="theme-color" content="#ffffff">
   <title>Wardrobe</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=44c35459fa">
 </head>
 <body>
   <header class="topbar">
@@ -169,6 +169,7 @@
         </label>
         <button id="generate" class="primary">Create outfit</button>
         <button id="shuffle" hidden>Try another</button>
+        <p id="outfit-count" class="outfit-count"></p>
         <p id="weather-line" class="muted weather-line"></p>
       </div>
       <div id="rate-bar" class="rate-bar" hidden>
@@ -178,7 +179,6 @@
         <span id="learned-note" class="muted"></span>
       </div>
       <p id="keep-hint" class="muted keep-hint"></p>
-      <p id="outfit-count" class="muted outfit-count"></p>
       <p id="create-msg" class="msg"></p>
       <p id="saved-badge" class="saved-badge" hidden>★ One of your saved outfits: you loved this one before.</p>
       <div id="board-wrap"></div>
@@ -328,8 +328,8 @@
 
   <div id="toast" class="toast" role="alert" hidden></div>
 
-  <script>window.WARDROBE_STANDALONE = true; window.WARDROBE_VERSION = "2026-10-29 · 7a5a45";</script>
-  <script src="phone-bundle.js"></script>
+  <script>window.WARDROBE_STANDALONE = true; window.WARDROBE_VERSION = "2026-10-29 · 8d247c"; window.WARDROBE_BUILD = "3b4407cf1a56";</script>
+  <script src="phone-bundle.js?v=1e197c9d02"></script>
   <script>
     // Offline support. When a newer version of the app takes over, reload once so
     // the new version shows right away instead of on the next visit. The iPhone
@@ -345,10 +345,10 @@
       }).catch(() => {});
     }
   </script>
-  <script src="outfits.js"></script>
-  <script src="weather.js"></script>
-  <script src="app.js"></script>
-  <script src="bulk.js"></script>
-  <script src="trips.js"></script>
+  <script src="outfits.js?v=198f846d4f"></script>
+  <script src="weather.js?v=6d0f0bbf8b"></script>
+  <script src="app.js?v=dfd2788e18"></script>
+  <script src="bulk.js?v=fb370c223a"></script>
+  <script src="trips.js?v=53c6e06436"></script>
 </body>
 </html>

@@ -202,6 +202,13 @@ label.button.primary, a.button.primary { background: var(--accent); color: #fff;
     "outer dress acc"
     "bag   shoes acc"; }
 .board.no-outer { grid-template-columns: 0.8fr 1.4fr 0.8fr; }
+/* A layer sits between the top and the bottom, so the board gets one more row. */
+.board.has-layer { grid-template-rows: 160px 160px 160px 180px; grid-template-areas:
+    "outer top    acc"
+    "outer layer  acc"
+    "outer bottom acc"
+    "bag   shoes  acc"; }
+.saved .board.has-layer { grid-template-rows: 120px 120px 120px 130px; }
 .slot { margin: 0; position: relative; min-height: 0; }
 .slot img { position: absolute; top: 0; left: 0; width: 100%; height: calc(100% - 22px); object-fit: contain; }
 .slot figcaption {
@@ -215,6 +222,7 @@ label.button.primary, a.button.primary { background: var(--accent); color: #fff;
 .slot-dress { grid-area: dress; }
 .slot-shoes { grid-area: shoes; }
 .slot-bag { grid-area: bag; }
+.slot-layer { grid-area: layer; }
 .slot-acc { grid-area: acc; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 .slot-acc .slot { flex: 1; }
 
@@ -291,5 +299,14 @@ label.button.primary, a.button.primary { background: var(--accent); color: #fff;
       "acc    acc";
   }
   .board.has-dress { grid-template-areas: "dress outer" "dress outer" "shoes bag" "acc acc"; }
+  .board.has-layer {
+    grid-template-rows: 150px 120px 150px 130px 130px;
+    grid-template-areas:
+      "top    outer"
+      "layer  outer"
+      "bottom outer"
+      "shoes  bag"
+      "acc    acc";
+  }
   .slot-acc { flex-direction: row; }
 }

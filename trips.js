@@ -7,9 +7,9 @@ let trip = null;        // the trip being edited or viewed
 let tripPlans = [];     // [{ day, occasion, outfit, ignoredWeather }] for the open trip
 let tripWeather = [];   // per day: { w, note }
 
-const TYPE_ORDER = ["dress", "top", "bottom", "outerwear", "shoes", "bag", "accessory"];
+const TYPE_ORDER = ["dress", "top", "layer", "bottom", "outerwear", "shoes", "bag", "accessory"];
 const TYPE_TITLES = {
-  dress: "Dresses", top: "Tops", bottom: "Bottoms", outerwear: "Coats & jackets",
+  dress: "Dresses", top: "Tops", layer: "Layers", bottom: "Bottoms", outerwear: "Coats & jackets",
   shoes: "Shoes", bag: "Bags", accessory: "Accessories",
 };
 

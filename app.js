@@ -558,9 +558,9 @@ function tile(item, area, starId, tools) {
 // starId marks the "build around" item with a star on the board.
 function boardHtml(o, starId, tools = false) {
   const t = (item, area) => tile(item, area, starId, tools);
-  return `<div class="board ${o.dress ? "has-dress" : ""} ${o.outerwear ? "" : "no-outer"}">
+  return `<div class="board ${o.dress ? "has-dress" : ""} ${o.layer ? "has-layer" : ""} ${o.outerwear ? "" : "no-outer"}">
     ${t(o.outerwear, "outer")}
-    ${o.dress ? t(o.dress, "dress") : t(o.top, "top") + t(o.bottom, "bottom")}
+    ${o.dress ? t(o.dress, "dress") : t(o.top, "top") + t(o.layer, "layer") + t(o.bottom, "bottom")}
     ${t(o.shoes, "shoes")}
     ${t(o.bag, "bag")}
     ${o.accessories && o.accessories.length ? `<div class="slot-acc">${o.accessories.map((a) => t(a, "accessory")).join("")}</div>` : ""}
@@ -709,7 +709,7 @@ function showSavedBadge() {
 }
 
 const TYPE_NAMES = {
-  top: "top", bottom: "bottom", dress: "dress", outerwear: "coat or jacket",
+  top: "top", bottom: "bottom", dress: "dress", outerwear: "coat or jacket", layer: "layer",
   shoes: "pair of shoes", bag: "bag", accessory: "accessory",
 };
 
@@ -910,4 +910,4 @@ api("/api/settings").then((s) => { aiReady = s.hasKey; });
 refreshPrefs();
 checkBackupReminder();
 
-window.WARDROBE_APP_BUILD = "632c07998b6a";
+window.WARDROBE_APP_BUILD = "7c25af152d4c";

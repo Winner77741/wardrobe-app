@@ -904,8 +904,10 @@ api("/api/items").then((data) => { items = data; renderCloset(); }).catch((err) 
   $("#closet-grid").innerHTML = `<p class="msg">Couldn't load your closet: ${esc(err.message)}</p>`;
   showError(err);
 });
+// A phone is touched, not clicked.
+if (window.phoneApi) $("#photo-hint").textContent = "Tap to choose a photo";
 api("/api/settings").then((s) => { aiReady = s.hasKey; });
 refreshPrefs();
 checkBackupReminder();
 
-window.WARDROBE_APP_BUILD = "3b4407cf1a56";
+window.WARDROBE_APP_BUILD = "632c07998b6a";

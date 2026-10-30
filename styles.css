@@ -16,6 +16,8 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   background: var(--bg);
   color: var(--ink);
+  /* On an iPhone home-screen app, keep the page below the clock and battery bar. */
+  padding-top: env(safe-area-inset-top);
 }
 
 .topbar {

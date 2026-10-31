@@ -79,12 +79,15 @@ function pools(items, occ, fixed = [], w = null) {
   const fixedCats = new Set(fixed.map((i) => i.category));
   const p = {
     dress: pool("dress"), top: pool("top"), bottom: pool("bottom"),
-    shoes: pool("shoes"), outerwear: pool("outerwear"), layer: pool("layer"), bag: pool("bag"),
+    shoes: pool("shoes"), outerwear: pool("outerwear"), bag: pool("bag"),
     fixedAccessories: fixedOf("accessory"),
     accessory: byCat(items, occ, "accessory", w).filter((i) => !fixed.some((f) => f.id === i.id)),
     fixedCats,
   };
   // A chosen top or bottom rules out a dress, and a chosen dress rules out separates.
+  // A layer ignores the occasion's dressiness range: the dress or top already sets the
+  // level, and a casual cardigan should still go over a dressy top. Weather still applies.
+  p.layer = fixedOf("layer").length ? [fixedOf("layer")[0]] : items.filter((i) => i.category === "layer" && suitsWeather(i, w));
   p.canDress = p.dress.length > 0 && !fixedCats.has("top") && !fixedCats.has("bottom");
   p.canSeparates = p.top.length > 0 && p.bottom.length > 0 && !fixedCats.has("dress");
   return p;

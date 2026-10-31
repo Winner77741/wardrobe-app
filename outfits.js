@@ -85,8 +85,7 @@ function pools(items, occ, fixed = [], w = null) {
     fixedCats,
   };
   // A chosen top or bottom rules out a dress, and a chosen dress rules out separates.
-  // A layer goes over a top, so a kept layer also rules out a dress.
-  p.canDress = p.dress.length > 0 && !fixedCats.has("top") && !fixedCats.has("bottom") && !fixedCats.has("layer");
+  p.canDress = p.dress.length > 0 && !fixedCats.has("top") && !fixedCats.has("bottom");
   p.canSeparates = p.top.length > 0 && p.bottom.length > 0 && !fixedCats.has("dress");
   return p;
 }
@@ -121,11 +120,12 @@ function buildOnce(items, occ, fixed, w) {
     (!warm && (occ.outerwear || Math.random() < 0.3));
   if (outer.length && wantOuter) outfit.outerwear = pick(outer);
 
-  // Layer (cardigan, vest, second top): worn over a top, so only with separates,
-  // never on a warm day unless the owner picked one. More likely on a cold day.
+  // Layer (cardigan, vest, second top): worn over a top, or under a dress. Never on
+  // a warm day unless the owner picked one. More likely on a cold day.
+  const base = outfit.top || outfit.dress;
   const layers = p.layer.filter(suits);
-  const wantLayer = p.fixedCats.has("layer") || (!warm && outfit.top && Math.random() < (w && w.kind === "cold" ? 0.7 : 0.4));
-  if (layers.length && wantLayer && outfit.top) outfit.layer = pick(layers);
+  const wantLayer = p.fixedCats.has("layer") || (!warm && Math.random() < (w && w.kind === "cold" ? 0.7 : 0.4));
+  if (layers.length && wantLayer && base) outfit.layer = pick(layers);
 
   const bags = p.bag.filter(suits);
   if (bags.length) outfit.bag = pick(bags);

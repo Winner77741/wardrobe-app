@@ -560,7 +560,7 @@ function boardHtml(o, starId, tools = false) {
   const t = (item, area) => tile(item, area, starId, tools);
   return `<div class="board ${o.dress ? "has-dress" : ""} ${o.layer ? "has-layer" : ""} ${o.outerwear ? "" : "no-outer"}">
     ${t(o.outerwear, "outer")}
-    ${o.dress ? t(o.dress, "dress") : t(o.top, "top") + t(o.layer, "layer") + t(o.bottom, "bottom")}
+    ${o.dress ? t(o.dress, "dress") + t(o.layer, "layer") : t(o.top, "top") + t(o.layer, "layer") + t(o.bottom, "bottom")}
     ${t(o.shoes, "shoes")}
     ${t(o.bag, "bag")}
     ${o.accessories && o.accessories.length ? `<div class="slot-acc">${o.accessories.map((a) => t(a, "accessory")).join("")}</div>` : ""}
@@ -910,4 +910,4 @@ api("/api/settings").then((s) => { aiReady = s.hasKey; });
 refreshPrefs();
 checkBackupReminder();
 
-window.WARDROBE_APP_BUILD = "7c25af152d4c";
+window.WARDROBE_APP_BUILD = "0e4bdf623305";

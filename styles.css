@@ -215,6 +215,19 @@ label.button.primary, a.button.primary { background: var(--accent); color: #fff;
     "outer layer acc"
     "bag   shoes acc"; }
 .saved .board.has-dress.has-layer { grid-template-rows: 120px 100px 130px; }
+/* Tights under a dress: a row of their own below the dress (and below any layer). */
+.slot-tights { grid-area: tights; }
+.board.has-dress.has-tights { grid-template-rows: 220px 160px 180px; grid-template-areas:
+    "outer dress acc"
+    "outer tights acc"
+    "bag   shoes acc"; }
+.board.has-dress.has-layer.has-tights { grid-template-rows: 200px 130px 130px 180px; grid-template-areas:
+    "outer dress acc"
+    "outer layer acc"
+    "outer tights acc"
+    "bag   shoes acc"; }
+.saved .board.has-dress.has-tights { grid-template-rows: 120px 100px 130px; }
+.saved .board.has-dress.has-layer.has-tights { grid-template-rows: 100px 90px 90px 130px; }
 .slot { margin: 0; position: relative; min-height: 0; }
 .slot img { position: absolute; top: 0; left: 0; width: 100%; height: calc(100% - 22px); object-fit: contain; }
 .slot figcaption {
@@ -319,6 +332,23 @@ label.button.primary, a.button.primary { background: var(--accent); color: #fff;
     grid-template-areas:
       "dress outer"
       "layer outer"
+      "shoes bag"
+      "acc   acc";
+  }
+  .board.has-dress.has-tights {
+    grid-template-rows: 180px 130px 150px 130px;
+    grid-template-areas:
+      "dress outer"
+      "tights outer"
+      "shoes bag"
+      "acc   acc";
+  }
+  .board.has-dress.has-layer.has-tights {
+    grid-template-rows: 150px 100px 100px 150px 130px;
+    grid-template-areas:
+      "dress outer"
+      "layer outer"
+      "tights outer"
       "shoes bag"
       "acc   acc";
   }

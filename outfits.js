@@ -88,6 +88,7 @@ function pools(items, occ, fixed = [], w = null) {
   // A layer ignores the occasion's dressiness range: the dress or top already sets the
   // level, and a casual cardigan should still go over a dressy top. Weather still applies.
   p.layer = fixedOf("layer").length ? [fixedOf("layer")[0]] : items.filter((i) => i.category === "layer" && suitsWeather(i, w));
+  p.tights = fixedOf("tights").length ? [fixedOf("tights")[0]] : items.filter((i) => i.category === "tights" && suitsWeather(i, w));
   p.canDress = p.dress.length > 0 && !fixedCats.has("top") && !fixedCats.has("bottom");
   p.canSeparates = p.top.length > 0 && p.bottom.length > 0 && !fixedCats.has("dress");
   return p;
@@ -129,6 +130,11 @@ function buildOnce(items, occ, fixed, w) {
   const layers = p.layer.filter(suits);
   const wantLayer = p.fixedCats.has("layer") || (!warm && Math.random() < (w && w.kind === "cold" ? 0.7 : 0.4));
   if (layers.length && wantLayer && base) outfit.layer = pick(layers);
+
+  // Tights go under a dress, on days that are not warm (or when the owner picked them).
+  const tights = p.tights.filter(suits);
+  const wantTights = p.fixedCats.has("tights") || (!warm && outfit.dress && Math.random() < 0.6);
+  if (tights.length && wantTights && outfit.dress) outfit.tights = pick(tights);
 
   const bags = p.bag.filter(suits);
   if (bags.length) outfit.bag = pick(bags);
@@ -172,7 +178,7 @@ function accessoryKind(item) {
 }
 
 function outfitItems(outfit) {
-  return [outfit.dress, outfit.top, outfit.layer, outfit.bottom, outfit.outerwear, outfit.shoes, outfit.bag,
+  return [outfit.dress, outfit.top, outfit.layer, outfit.tights, outfit.bottom, outfit.outerwear, outfit.shoes, outfit.bag,
     ...(outfit.accessories || [])].filter(Boolean);
 }
 

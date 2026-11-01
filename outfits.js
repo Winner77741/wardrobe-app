@@ -124,17 +124,18 @@ function buildOnce(items, occ, fixed, w) {
     (!warm && (occ.outerwear || Math.random() < 0.3));
   if (outer.length && wantOuter) outfit.outerwear = pick(outer);
 
-  // Layer (cardigan, vest, second top): worn over a top, or under a dress. Never on
-  // a warm day unless the owner picked one. More likely on a cold day.
+  // Layer (cardigan, vest, second top): worn over a top, or under a dress. Less
+  // likely on a warm day, most likely on a cold one. Weather tags still apply.
   const base = outfit.top || outfit.dress;
   const layers = p.layer.filter(suits);
-  const wantLayer = p.fixedCats.has("layer") || (!warm && Math.random() < (w && w.kind === "cold" ? 0.7 : 0.4));
-  if (layers.length && wantLayer && base) outfit.layer = pick(layers);
+  const layerChance = w && w.kind === "cold" ? 0.7 : warm ? 0.2 : 0.4;
+  const wantLayer = layers.length && base && (p.fixedCats.has("layer") || Math.random() < layerChance);
+  if (wantLayer) outfit.layer = pick(layers);
 
-  // Tights go under a dress, on days that are not warm (or when the owner picked them).
+  // Tights go under a dress: most often on days that are not warm (or when the owner picked them).
   const tights = p.tights.filter(suits);
-  const wantTights = p.fixedCats.has("tights") || (!warm && outfit.dress && Math.random() < 0.6);
-  if (tights.length && wantTights && outfit.dress) outfit.tights = pick(tights);
+  const wantTights = tights.length && outfit.dress && (p.fixedCats.has("tights") || Math.random() < (warm ? 0.2 : 0.6));
+  if (wantTights) outfit.tights = pick(tights);
 
   const bags = p.bag.filter(suits);
   if (bags.length) outfit.bag = pick(bags);

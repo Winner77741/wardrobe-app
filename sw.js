@@ -1,8 +1,8 @@
 // Offline support for the home-screen app: keeps a copy of the app's own files
 // so it opens without internet. Your closet isn't here; it's in the app's storage.
 // The cache name and file list below are filled in by scripts/build-web.js.
-const CACHE = "wardrobe-db62e507d982";
-const FILES = ["./","app.js?v=887f0272ab","bulk.js?v=fb370c223a","icons/icon-180.png","icons/icon-192.png","icons/icon-512.png","index.html","manifest.webmanifest","outfits.js?v=1d7d49acfb","phone-bundle.js?v=81b75d2e53","styles.css?v=766cc157d5","trips.js?v=a86b1979fc","weather.js?v=6d0f0bbf8b"];
+const CACHE = "wardrobe-6608680284e7";
+const FILES = ["./","app.js?v=325f12e5f9","bulk.js?v=fb370c223a","icons/icon-180.png","icons/icon-192.png","icons/icon-512.png","index.html","manifest.webmanifest","outfits.js?v=5587aa330e","phone-bundle.js?v=81b75d2e53","styles.css?v=766cc157d5","trips.js?v=a86b1979fc","weather.js?v=6d0f0bbf8b"];
 
 // Always fetch fresh copies here: the browser's own short-term memory may still
 // hold files from the previous version, and a mix of old and new could break the app.

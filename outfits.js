@@ -81,7 +81,9 @@ function pools(items, occ, fixed = [], w = null) {
     dress: pool("dress"), top: pool("top"), bottom: pool("bottom"),
     shoes: pool("shoes"), outerwear: pool("outerwear"), bag: pool("bag"),
     fixedAccessories: fixedOf("accessory"),
-    accessory: byCat(items, occ, "accessory", w).filter((i) => !fixed.some((f) => f.id === i.id)),
+    // Accessories ignore the occasion's dressiness range (like layers): jewelry can go with a
+    // casual outfit or brunch. Weather still applies, and each occasion's count still holds.
+    accessory: items.filter((i) => i.category === "accessory" && suitsWeather(i, w)).filter((i) => !fixed.some((f) => f.id === i.id)),
     fixedCats,
   };
   // A chosen top or bottom rules out a dress, and a chosen dress rules out separates.

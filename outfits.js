@@ -161,6 +161,7 @@ function buildOnce(items, occ, fixed, w) {
 const ACCESSORY_KINDS = [
   ["earrings", /\b(earrings?|studs?|hoops?)\b/],
   ["necklace", /\b(necklace|pendant|choker|locket)\b/],
+  ["anklet", /\banklets?\b/],
   ["bracelet", /\b(bracelet|bangle|cuff)\b/],
   ["ring", /\brings?\b/],
   ["watch", /\bwatch\b/],
@@ -348,13 +349,39 @@ function withPiece(outfit, where, item) {
 // favoring good matches. Returns null if there's no other choice.
 // Swap is the owner's own choice, so any piece of the same type that suits the weather can
 // be picked, whatever its dressiness (the owner decides how dressy the look is).
+// Jewelry is one group: swapping a ring, earrings, bracelet, necklace or anklet offers only
+// jewelry. A swap also never brings in a second piece of a kind already in the outfit.
+const JEWELRY_KINDS = new Set(["earrings", "necklace", "bracelet", "ring", "anklet"]);
 function swapPiece(items, occasionKey, outfit, itemId, prefs, w = null) {
   const where = findPiece(outfit, itemId);
   if (!where) return null;
   const inOutfit = new Set(outfitItems(outfit).map((i) => i.id));
-  const options = items.filter((i) => i.category === where.item.category && suitsWeather(i, w) && !inOutfit.has(i.id));
-  const candidates = options.map((alt) => withPiece(outfit, where, alt)).filter((o) => !isDisliked(o, prefs) && !mixesSeasons(o));
-  return candidates.length ? chooseWeighted(candidates, prefs) : null;
+  const isAccessory = where.item.category === "accessory";
+  const kind = isAccessory ? accessoryKind(where.item) : null;
+  const otherKinds = new Set((outfit.accessories || []).filter((a) => a.id !== itemId).map(accessoryKind));
+  const sameGroup = (i) => {
+    if (!isAccessory) return true;
+    const k = accessoryKind(i);
+    if (otherKinds.has(k)) return false;
+    return !JEWELRY_KINDS.has(kind) || JEWELRY_KINDS.has(k);
+  };
+  const options = items.filter((i) => i.category === where.item.category && suitsWeather(i, w) && !inOutfit.has(i.id) && sameGroup(i));
+  const pairs = options.map((alt) => ({ alt, outfit: withPiece(outfit, where, alt) }))
+    .filter((p) => !isDisliked(p.outfit, prefs) && !mixesSeasons(p.outfit));
+  if (!pairs.length) return null;
+  // For jewelry, pick a kind at random first, so a necklace comes up as often as a ring or
+  // bracelet. Otherwise the best color match would almost always win.
+  let pool = pairs;
+  if (isAccessory && JEWELRY_KINDS.has(kind)) {
+    const byKind = new Map();
+    for (const p of pairs) {
+      const k = accessoryKind(p.alt);
+      if (!byKind.has(k)) byKind.set(k, []);
+      byKind.get(k).push(p);
+    }
+    pool = pick([...byKind.values()]);
+  }
+  return chooseWeighted(pool.map((p) => p.outfit), prefs);
 }
 
 // Coats, bags, accessories, layers and tights can be left out; a dress, top, bottom or shoes can't.
@@ -364,6 +391,21 @@ const canRemove = (item) => OPTIONAL.has(item.category);
 function removePiece(outfit, itemId) {
   const where = findPiece(outfit, itemId);
   return where && canRemove(where.item) ? withPiece(outfit, where, null) : null;
+}
+
+// Put a piece taken off the board back into the outfit, if there is room for it: its empty
+// slot, or a free accessory place (up to the occasion's number) for a kind not already worn.
+// Returns null when there is no room.
+function putBackPiece(outfit, item, maxAccessories) {
+  if (!item) return null;
+  if (item.category === "accessory") {
+    const worn = outfit.accessories || [];
+    if (worn.length >= maxAccessories) return null;
+    if (worn.some((a) => accessoryKind(a) === accessoryKind(item))) return null;
+    return { ...outfit, accessories: [...worn, item] };
+  }
+  if (outfit[item.category]) return null;
+  return { ...outfit, [item.category]: item };
 }
 
 // Explain what's missing when no outfit can be made.

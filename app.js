@@ -655,10 +655,20 @@ function showLeftOut() {
     : "";
 }
 
+// Put back: the piece returns to the outfit on the board right away, if there is room for it.
 $("#left-out").addEventListener("click", (e) => {
   const id = e.target.dataset.back;
   if (!id) return;
+  const item = items.find((i) => i.id === id);
   leftOut.delete(id);
+  const next = current && item ? putBackPiece(current, item, OCCASIONS[occSelect.value].accessories) : null;
+  if (next) {
+    current = next;
+    return showCurrent();
+  }
+  if (current && item) {
+    showError({ message: `${item.name} is back in your options. There's no free space for it in this outfit, so Try another will bring it in when there is.` });
+  }
   showLeftOut();
 });
 
@@ -939,4 +949,4 @@ api("/api/settings").then((s) => { aiReady = s.hasKey; });
 refreshPrefs();
 checkBackupReminder();
 
-window.WARDROBE_APP_BUILD = "b88428433b09";
+window.WARDROBE_APP_BUILD = "bfec11e8f8c9";

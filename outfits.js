@@ -267,7 +267,7 @@ const mixesSeasons = (o) => {
 // Each time an accessory has already been shown in this session (Try another), the
 // outfits using it are a little less likely, so a favourite piece (like a ring you love)
 // doesn't come back every time and other jewelry gets its turn.
-const REPEAT_WEIGHT = 1;
+const REPEAT_WEIGHT = 2;
 function accessoryRepeats(list, repeats) {
   let total = 0;
   for (const it of list) if (it.category === "accessory") total += repeats.get(it.id) || 0;

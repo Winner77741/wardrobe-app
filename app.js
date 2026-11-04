@@ -949,4 +949,4 @@ api("/api/settings").then((s) => { aiReady = s.hasKey; });
 refreshPrefs();
 checkBackupReminder();
 
-window.WARDROBE_APP_BUILD = "e1e5941ea605";
+window.WARDROBE_APP_BUILD = "3be9afbe880f";

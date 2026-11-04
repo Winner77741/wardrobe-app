@@ -264,12 +264,23 @@ const mixesSeasons = (o) => {
 
 // Pick one of several outfits at random, favoring good color harmony and what
 // the owner's ratings say they like (lower score = more likely).
-function chooseWeighted(outfits, prefs) {
+// Each time an accessory has already been shown in this session (Try another), the
+// outfits using it are a little less likely, so a favourite piece (like a ring you love)
+// doesn't come back every time and other jewelry gets its turn.
+const REPEAT_WEIGHT = 1;
+function accessoryRepeats(list, repeats) {
+  let total = 0;
+  for (const it of list) if (it.category === "accessory") total += repeats.get(it.id) || 0;
+  return total;
+}
+
+function chooseWeighted(outfits, prefs, repeats = null) {
   const scored = outfits.map((o) => {
     const list = outfitItems(o);
     return {
       o,
-      score: colorScore(list) + (prefs ? WEAR_WEIGHT * wornPenalty(list, prefs) - RATING_WEIGHT * preferenceScore(list, prefs) : 0),
+      score: colorScore(list) + (prefs ? WEAR_WEIGHT * wornPenalty(list, prefs) - RATING_WEIGHT * preferenceScore(list, prefs) : 0) +
+        (repeats ? REPEAT_WEIGHT * accessoryRepeats(list, repeats) : 0),
     };
   });
   const lowest = Math.min(...scored.map((c) => c.score));
@@ -299,11 +310,14 @@ function generateOutfit(items, occasionKey, fixed, prefs, w = null, shown = null
   }
   if (!candidates.length) return fallback;
   if (!shown) return chooseWeighted(candidates, prefs);
+  // How often each piece has been shown in this session (the keys are the pieces' ids).
+  const repeats = new Map();
+  for (const key of shown) for (const id of key.split(",")) repeats.set(id, (repeats.get(id) || 0) + 1);
   const unseen = candidates.filter((o) => !shown.has(keyOf(o)));
   const fresh = unseen.filter((o) => !isSaved(o, prefs));
-  if (fresh.length) return chooseWeighted(fresh, prefs);
-  if (unseen.length) return chooseWeighted(unseen, prefs);
-  return { ...chooseWeighted(candidates, prefs), seenAll: true };
+  if (fresh.length) return chooseWeighted(fresh, prefs, repeats);
+  if (unseen.length) return chooseWeighted(unseen, prefs, repeats);
+  return { ...chooseWeighted(candidates, prefs, repeats), seenAll: true };
 }
 
 // How many different outfits the closet can make for an occasion (found by

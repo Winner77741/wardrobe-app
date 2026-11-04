@@ -4,6 +4,7 @@ let items = [];
 let current = null; // outfit currently shown on the Create board
 let anchor = null;  // item the user chose to "build an outfit around"
 const kept = new Set(); // ids of outfit pieces the user chose to keep (🔒) while trying others
+const leftOut = new Set(); // ids of pieces the user took off the board (✕); kept out of new outfits until put back
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -275,9 +276,11 @@ async function reloadCloset() {
   // An outfit on the Create board may use items that are gone now.
   setAnchor(null);
   kept.clear();
+  leftOut.clear();
   current = null;
   $("#board-wrap").innerHTML = "";
   $("#shuffle").hidden = $("#rate-bar").hidden = true;
+  showLeftOut();
   renderCloset();
   refreshPrefs();
   renderSettings();
@@ -636,6 +639,29 @@ function fixedPieces() {
   return anchor && !kept.has(anchor.id) ? [anchor, ...fixed] : fixed;
 }
 
+// The items new outfits and swaps may use: everything except pieces the user took off
+// the board. The "build around" item and kept pieces are always allowed.
+function usableItems() {
+  return items.filter((i) => !leftOut.has(i.id) || kept.has(i.id) || (anchor && anchor.id === i.id));
+}
+
+// The line under the board naming pieces taken off, each with a Put back button.
+function showLeftOut() {
+  const line = $("#left-out");
+  const gone = items.filter((i) => leftOut.has(i.id));
+  line.hidden = !gone.length;
+  line.innerHTML = gone.length
+    ? `Left out for now: ${gone.map((i) => `${esc(i.name)} <button class="link" data-back="${esc(i.id)}">Put back</button>`).join(", ")}`
+    : "";
+}
+
+$("#left-out").addEventListener("click", (e) => {
+  const id = e.target.dataset.back;
+  if (!id) return;
+  leftOut.delete(id);
+  showLeftOut();
+});
+
 // Outfits shown since the occasion (or "build around" item) was picked, so
 // Create outfit and Try another show new ones before repeating any.
 const shown = new Set();
@@ -650,7 +676,7 @@ function showOutfitCount(w) {
   if (!current || kept.size) { line.textContent = ""; return; }
   const key = [occSelect.value, anchor && anchor.id, JSON.stringify(w)].join("|");
   if (countCache.key !== key || countCache.prefs !== prefs) {
-    countCache = { key, prefs, count: countOutfits(items, occSelect.value, fixedPieces(), prefs, w) };
+    countCache = { key, prefs, count: countOutfits(usableItems(), occSelect.value, fixedPieces(), prefs, w) };
   }
   const { total, saved } = countCache.count;
   const of = Math.max(total, shown.size);
@@ -661,11 +687,11 @@ function showOutfitCount(w) {
 function makeOutfit(note = "") {
   const msg = $("#create-msg");
   let usedWeather = currentWeather;
-  current = generateOutfit(items, occSelect.value, fixedPieces(), prefs, currentWeather, shown);
+  current = generateOutfit(usableItems(), occSelect.value, fixedPieces(), prefs, currentWeather, shown);
   if (!current && currentWeather) {
     // Nothing fits both the occasion and the weather: still show the best outfit.
     usedWeather = null;
-    current = generateOutfit(items, occSelect.value, fixedPieces(), prefs, null, shown);
+    current = generateOutfit(usableItems(), occSelect.value, fixedPieces(), prefs, null, shown);
     if (current) note = `Nothing in your closet fully suits ${currentWeather.kind} weather for this occasion, so this outfit ignores the weather.`;
   }
   if (current && current.fallback) {
@@ -680,7 +706,7 @@ function makeOutfit(note = "") {
   if (current) shown.add(shownKey(current));
   showOutfitCount(usedWeather);
   if (!current) {
-    msg.textContent = missingFor(items, occSelect.value, fixedPieces());
+    msg.textContent = missingFor(usableItems(), occSelect.value, fixedPieces());
     $("#board-wrap").innerHTML = "";
     $("#shuffle").hidden = $("#rate-bar").hidden = true;
     return;
@@ -691,6 +717,7 @@ function makeOutfit(note = "") {
 // Draw the current outfit, ready to rate.
 function showCurrent(note = "") {
   $("#create-msg").textContent = note;
+  showLeftOut();
   $("#board-wrap").innerHTML = boardHtml(current, anchor && anchor.id, true);
   $("#shuffle").hidden = $("#rate-bar").hidden = false;
   $("#save-outfit").disabled = $("#dislike-outfit").disabled = $("#wear-outfit").disabled = false;
@@ -724,9 +751,9 @@ $("#board-wrap").addEventListener("click", (e) => {
   }
   if (swap) {
     const piece = items.find((i) => i.id === swap);
-    const next = swapPiece(items, occSelect.value, current, swap, prefs, currentWeather);
+    const next = swapPiece(usableItems(), occSelect.value, current, swap, prefs, currentWeather);
     if (!next) {
-      $("#create-msg").textContent = `No other ${TYPE_NAMES[piece.category]} in your closet suits ${OCCASIONS[occSelect.value].label}.`;
+      $("#create-msg").textContent = `No other ${TYPE_NAMES[piece.category]} in your closet can go here. Either there isn't another one, it's already in this outfit, or it doesn't suit the weather.`;
       return;
     }
     kept.delete(swap);
@@ -736,6 +763,7 @@ $("#board-wrap").addEventListener("click", (e) => {
   const next = removePiece(current, drop);
   if (next) {
     kept.delete(drop);
+    leftOut.add(drop); // stays off new outfits until the owner puts it back
     current = next;
     showCurrent();
   }
@@ -910,4 +938,4 @@ api("/api/settings").then((s) => { aiReady = s.hasKey; });
 refreshPrefs();
 checkBackupReminder();
 
-window.WARDROBE_APP_BUILD = "977490b826dd";
+window.WARDROBE_APP_BUILD = "0c28b6d2d1f9";

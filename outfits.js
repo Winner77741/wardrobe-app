@@ -323,7 +323,9 @@ function countOutfits(items, occasionKey, fixed, prefs, w = null) {
 }
 
 // ---------- Changing one piece ----------
-const SLOTS = ["dress", "top", "bottom", "outerwear", "shoes", "bag"];
+// Every slot a piece can sit in on the board. Layers and tights were missing here, so
+// Swap and "leave out" could not find them.
+const SLOTS = ["dress", "top", "layer", "tights", "bottom", "outerwear", "shoes", "bag"];
 
 // Where an item sits in an outfit: { slot } or { accessoryIndex }.
 function findPiece(outfit, itemId) {
@@ -344,19 +346,19 @@ function withPiece(outfit, where, item) {
 
 // Replace one piece with another of the same type that suits the occasion,
 // favoring good matches. Returns null if there's no other choice.
+// Swap is the owner's own choice, so any piece of the same type that suits the weather can
+// be picked, whatever its dressiness (the owner decides how dressy the look is).
 function swapPiece(items, occasionKey, outfit, itemId, prefs, w = null) {
   const where = findPiece(outfit, itemId);
   if (!where) return null;
-  const occ = OCCASIONS[occasionKey];
   const inOutfit = new Set(outfitItems(outfit).map((i) => i.id));
-  const options = items.filter((i) => i.category === where.item.category && fits(i, occ) &&
-    suitsWeather(i, w) && !inOutfit.has(i.id));
+  const options = items.filter((i) => i.category === where.item.category && suitsWeather(i, w) && !inOutfit.has(i.id));
   const candidates = options.map((alt) => withPiece(outfit, where, alt)).filter((o) => !isDisliked(o, prefs) && !mixesSeasons(o));
   return candidates.length ? chooseWeighted(candidates, prefs) : null;
 }
 
-// Coats, bags and accessories can be left out; a dress, top, bottom or shoes can't.
-const OPTIONAL = new Set(["outerwear", "bag", "accessory"]);
+// Coats, bags, accessories, layers and tights can be left out; a dress, top, bottom or shoes can't.
+const OPTIONAL = new Set(["outerwear", "bag", "accessory", "layer", "tights"]);
 const canRemove = (item) => OPTIONAL.has(item.category);
 
 function removePiece(outfit, itemId) {

@@ -229,7 +229,9 @@ label.button.primary, a.button.primary { background: var(--accent); color: #fff;
 .saved .board.has-dress.has-tights { grid-template-rows: 120px 100px 130px; }
 .saved .board.has-dress.has-layer.has-tights { grid-template-rows: 100px 90px 90px 130px; }
 .slot { margin: 0; position: relative; min-height: 0; }
-.slot img { position: absolute; top: 0; left: 0; width: 100%; height: calc(100% - 22px); object-fit: contain; }
+/* The photo starts below the Keep / Swap / ✕ row (28px) and above the name (22px), so the
+   buttons never sit on top of a piece. */
+.slot img { position: absolute; top: 28px; left: 0; width: 100%; height: calc(100% - 50px); object-fit: contain; }
 .slot figcaption {
   position: absolute; bottom: 0; left: 0; right: 0;
   text-align: center; font-size: .8em; color: var(--muted);

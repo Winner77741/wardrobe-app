@@ -753,7 +753,8 @@ $("#board-wrap").addEventListener("click", (e) => {
     const piece = items.find((i) => i.id === swap);
     const next = swapPiece(usableItems(), occSelect.value, current, swap, prefs, currentWeather);
     if (!next) {
-      $("#create-msg").textContent = `No other ${TYPE_NAMES[piece.category]} in your closet can go here. Either there isn't another one, it's already in this outfit, or it doesn't suit the weather.`;
+      // A pop-up at the bottom of the screen, so it shows even when the outfit is scrolled down.
+      showError({ message: `No swap for this ${TYPE_NAMES[piece.category]}: there's no other one in your closet that can go here. It may already be in this outfit, or it may not suit the weather.` });
       return;
     }
     kept.delete(swap);
@@ -938,4 +939,4 @@ api("/api/settings").then((s) => { aiReady = s.hasKey; });
 refreshPrefs();
 checkBackupReminder();
 
-window.WARDROBE_APP_BUILD = "0c28b6d2d1f9";
+window.WARDROBE_APP_BUILD = "90f0944580df";

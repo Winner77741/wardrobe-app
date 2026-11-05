@@ -731,7 +731,10 @@ function makeOutfit(note = "") {
   if (current) shown.add(shownKey(current));
   showOutfitCount(usedWeather);
   if (!current) {
-    msg.textContent = missingFor(usableItems(), occSelect.value, fixedPieces());
+    // An empty closet (e.g. a new home-screen icon before the closet file is loaded) needs a different message.
+    msg.textContent = items.length
+      ? missingFor(usableItems(), occSelect.value, fixedPieces())
+      : "Your closet is empty on this device. In Settings, use \"Load a closet file\" to bring it back, then try again.";
     $("#board-wrap").innerHTML = "";
     $("#shuffle").hidden = $("#rate-bar").hidden = true;
     return;
@@ -964,4 +967,4 @@ api("/api/settings").then((s) => { aiReady = s.hasKey; });
 refreshPrefs();
 checkBackupReminder();
 
-window.WARDROBE_APP_BUILD = "737336f9379c";
+window.WARDROBE_APP_BUILD = "dbde426478ed";

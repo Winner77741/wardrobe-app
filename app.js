@@ -107,7 +107,7 @@ $("#test-weather").addEventListener("change", (e) => {
   saveTestWeather(e.target.value);
   $("#weather-msg").textContent = e.target.value === "off"
     ? "Test weather is off. Outfits use the real forecast."
-    : `Test weather is ${e.target.value}. Create an outfit to see it.`;
+    : `Test weather is set to ${e.target.value}. Now tap "Create Outfit" at the top of the screen, then "Create outfit", to see it.`;
 });
 $("#weather-off").addEventListener("click", () => {
   saveWeatherSettings(null);
@@ -613,12 +613,14 @@ async function refreshWeather() {
   const settings = loadWeatherSettings();
   const when = $("#when").value;
   currentWeather = null;
+  line.classList.remove("test-weather");
   // Today / Tomorrow / Ignore weather only mean something once a town is set.
   $("#when-label").hidden = !(settings && settings.place);
   const testKind = loadTestWeather();
   if (testKind !== "off" && when !== "off") {
     currentWeather = { kind: testKind, rainy: false, snowy: false };
-    line.textContent = `Test weather: ${testKind}, not the real forecast (Settings → Testing options).`;
+    line.textContent = `⚠️ TEST WEATHER: pretending it is ${testKind}. Not the real forecast. Turn it off in Settings → Testing options.`;
+    line.classList.add("test-weather");
     return;
   }
   if (!settings || !settings.place) {
@@ -962,4 +964,4 @@ api("/api/settings").then((s) => { aiReady = s.hasKey; });
 refreshPrefs();
 checkBackupReminder();
 
-window.WARDROBE_APP_BUILD = "df631cead4eb";
+window.WARDROBE_APP_BUILD = "1f31bb59cf2b";

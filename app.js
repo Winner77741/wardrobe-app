@@ -62,6 +62,7 @@ function renderWeatherSettings() {
     : "Weather is off. Find your town to turn it on.";
   $("#unit-select").value = (s && s.unit) || defaultUnit();
   $("#weather-off").hidden = !(s && s.place);
+  $("#test-weather").value = loadTestWeather();
 }
 
 function choosePlace(place) {
@@ -101,6 +102,12 @@ $("#unit-select").addEventListener("change", (e) => {
   const s = loadWeatherSettings();
   if (s) saveWeatherSettings({ ...s, unit: e.target.value });
   $("#weather-msg").textContent = "Saved.";
+});
+$("#test-weather").addEventListener("change", (e) => {
+  saveTestWeather(e.target.value);
+  $("#weather-msg").textContent = e.target.value === "off"
+    ? "Test weather is off. Outfits use the real forecast."
+    : `Test weather is ${e.target.value}. Create an outfit to see it.`;
 });
 $("#weather-off").addEventListener("click", () => {
   saveWeatherSettings(null);
@@ -608,6 +615,12 @@ async function refreshWeather() {
   currentWeather = null;
   // Today / Tomorrow / Ignore weather only mean something once a town is set.
   $("#when-label").hidden = !(settings && settings.place);
+  const testKind = loadTestWeather();
+  if (testKind !== "off" && when !== "off") {
+    currentWeather = { kind: testKind, rainy: false, snowy: false };
+    line.textContent = `Test weather: ${testKind}, not the real forecast (Settings → Testing options).`;
+    return;
+  }
   if (!settings || !settings.place) {
     line.innerHTML = `To match outfits to the weather, set your town in <a href="#" data-goto="settings">Settings</a>.`;
     return;
@@ -949,4 +962,4 @@ api("/api/settings").then((s) => { aiReady = s.hasKey; });
 refreshPrefs();
 checkBackupReminder();
 
-window.WARDROBE_APP_BUILD = "3be9afbe880f";
+window.WARDROBE_APP_BUILD = "df631cead4eb";

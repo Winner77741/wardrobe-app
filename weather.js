@@ -21,6 +21,27 @@ function saveWeatherSettings(settings) {
   }
 }
 
+// Testing only: pretend the weather is warm, cold or mild instead of using the
+// forecast, so the owner can check cold-weather outfits any day. "off" = real forecast.
+const TEST_WEATHER_KEY = "wardrobe-test-weather";
+
+function loadTestWeather() {
+  try {
+    return localStorage.getItem(TEST_WEATHER_KEY) || "off";
+  } catch {
+    return "off";
+  }
+}
+
+function saveTestWeather(kind) {
+  try {
+    if (kind === "warm" || kind === "cold" || kind === "mild") localStorage.setItem(TEST_WEATHER_KEY, kind);
+    else localStorage.removeItem(TEST_WEATHER_KEY);
+  } catch {
+    // storage unavailable
+  }
+}
+
 // Most people using °F are in the US; everyone else gets °C unless they change it.
 const defaultUnit = () => (/-US$/i.test(navigator.language || "") ? "F" : "C");
 

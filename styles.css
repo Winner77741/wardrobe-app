@@ -250,7 +250,7 @@ label.button.primary, a.button.primary { background: var(--accent); color: #fff;
 /* Weather */
 .weather-line { flex-basis: 100%; margin: 0; }
 /* Shown when the testing option pretends the weather: hard to miss, so nobody mistakes it for the forecast. */
-.weather-line.test-weather { color: var(--accent); font-weight: 600; }
+.weather-line.test-weather { color: #b3261e; font-weight: 600; }
 .place-results { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .place-results button { text-align: left; }
 
